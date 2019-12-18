@@ -18,7 +18,7 @@ class Actor(nn.Module):
 
 
         if torch.cuda.is_available():
-            x = torch.tensor(x).cuda()
+            x = x.cuda()
         else:
             x = torch.tensor(x)
         x = F.relu(self.fc1(x))

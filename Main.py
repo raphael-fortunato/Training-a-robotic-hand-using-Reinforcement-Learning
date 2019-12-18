@@ -45,8 +45,10 @@ class Agent:
 
 
     def Action(self, step):
+        
         with torch.no_grad():
             step = np.concatenate([step['observation'], step['desired_goal']])
+            step = torch.tensor(step)
             action = self.actor_target.forward(step).detach().cpu().numpy()
             action +=self.noise_eps * self.env_params['max_action'] * np.random.randn(*action.shape)
             action = np.clip(action, -self.env_params['max_action'], self.env_params['max_action'])
@@ -62,75 +64,91 @@ class Agent:
     def Update(self):
         minibatch =  random.sample(self.memory, 32)
 
-        s_batch_obs = [data[0]['observation'] for data in minibatch]
-        s_batch_goal = [data[0]['desired_goal'] for data in minibatch]
+        obs_batch_obs = [data[0]['observation'] for data in minibatch]
+        obs_batch_goal = [data[0]['desired_goal'] for data in minibatch]
         a_batch = [data[1] for data in minibatch]
         r_batch = [data[2] for data in minibatch]
         d_batch = [data[3] for data in minibatch]
-        st1_batch_obs = [data[0]['observation'] for data in minibatch]
-        st1_batch_goal = [data[0]['desired_goal'] for data in minibatch]
-
+        obs1_batch_obs = [data[0]['observation'] for data in minibatch]
+        obs1_batch_goal = [data[0]['desired_goal'] for data in minibatch]
 
         a_batch = torch.tensor(a_batch,dtype=torch.double)
         r_batch = torch.tensor(r_batch,dtype=torch.double)
         d_batch = torch.tensor(d_batch,dtype=torch.double)
-        s_batch_obs = torch.tensor(s_batch_obs,dtype=torch.double)
-        s_batch_goal = torch.tensor(s_batch_goal,dtype=torch.double)
-        st1_batch_obs = torch.tensor(st1_batch_obs,dtype=torch.double)
-        st1_batch_goal = torch.tensor(st1_batch_goal,dtype=torch.double)
+        obs_batch_obs = torch.tensor(obs_batch_obs,dtype=torch.double)
+        obs_batch_goal = torch.tensor(obs_batch_goal,dtype=torch.double)
+        obs1_batch_obs = torch.tensor(obs1_batch_obs,dtype=torch.double)
+        obs1_batch_goal = torch.tensor(obs1_batch_goal,dtype=torch.double)
 
         if torch.cuda.is_available():
-            s_batch_obs = s_batch_obs.cuda()
-            s_batch_goal = s_batch_goal.cuda()
+            obs_batch_obs = obs_batch_obs.cuda()
+            obs_batch_goal = obs_batch_goal.cuda()
             a_batch = a_batch.cuda()
             r_batch = r_batch.cuda()
             d_batch = d_batch.cuda()
-            st1_batch_obs = st1_batch_obs.cuda()
-            st1_batch_goal = st1_batch_goal.cuda()
+            obs1_batch_obs = obs_batch_obs.cuda()
+            obs1_batch_goal = obs_batch_goal.cuda()
     
         with torch.no_grad():
-            input_critic = torch.cat([s_batch_obs,s_batch_goal, a_batch],dim=1 )
-            input_actor = torch.cat([st1_batch_obs,st1_batch_goal],dim=1)
-            action_next = self.actor_target.forward(input_actor)
-
-            input_critic = torch.cat([st1_batch_obs, st1_batch_goal], dim=1)
-            q_next = self.critic_target.forward(input_critic,action_next)
+            state = torch.cat([obs1_batch_obs,obs1_batch_goal],dim=1)
+            action_next = self.actor_target.forward(state)
+            
+            statet1 = torch.cat([obs1_batch_obs, obs1_batch_goal], dim=1)
+            q_next = self.critic_target.forward(statet1,action_next)
             q_next = q_next.detach()
 
         q_target = r_batch + (self.gamma *(1 - d_batch) * q_next)
         q_target = q_target.detach()
-        q_prime = self.critic.forward(input_actor, a_batch)
-        critic_loss = ((q_target - q_prime)**2).mean()
+        q_prime = self.critic.forward(state, a_batch)
+        critic_loss = (q_target - q_prime).pow(2).mean()
 
-        #actor_prime 
+        action = self.actor.forward(state)
+        actor_loss = -self.critic.forward(state, a_batch).mean()
+        actor_loss += (action / self.env_params['max_action']).pow(2).mean()
+
+        print(f"actor loss = {actor_loss}, critic loss = {critic_loss}")
+
+        self.actor_optim.zero_grad()
+        actor_loss.backward()
+        self.actor_optim.step()
+
+        self.critic_optim.zero_grad()
+        critic_loss.backward()
+        self.critic_optim.step()
+        return actor_loss, critic_loss
         
-        
+    def SaveModel(self):
+        torch.save(self.actor.state_dict(), self.model_path[0])
+        torch.save(self.critic.state_dict(), self.model_path[1])   
 
     def Explore(self):
+        succes_rate = []
         for episode in range(self.episodes):
             state = env.reset()
             for t in range(self.env_params['max_timesteps']): 
+
                 if self.screen:
                     env.render()
-                #NORMALIZE EVERY INPUT 
-                #pdb.set_trace()
-                #norm = Normalizer(-10, 10)
-                #test = norm.normalize(state)
-                action = self.Action(state)
 
+                #NORMALIZE EVERY INPUT 
+                action = self.Action(state)
                 nextstate, reward, done, info = env.step(action)
                 self.memory.append((state, action, reward, done, nextstate))
                 state = nextstate
-                
+               
+                if reward ==1:
+                    succes_rate.append(True)
                 if done:
+                    succes_rate.append(False)
+                    print(f"Episode: {episode}of{self.episodes}, succes_rate:{np.sum(succes_rate)/len(succes_rate)}")
                     break
-        self.Update()
+            if not episode % 5:  
+                print('Training Networks')       
+                self.Update()
 
 
 
-    def SaveModel(self):
-        torch.save(self.actor.state_dict(), self.model_path[0])
-        torch.save(self.critic.state_dict(), self.model_path[1])
+
 
 
 
@@ -147,6 +165,6 @@ def get_params(env):
 
 env = gym.make('HandManipulateBlock-v0')
 env_param = get_params(env)
-agent = Agent(env,env_param, 3, 1., screen=False)
+agent = Agent(env,env_param, 6, 1., screen=True)
 agent.Explore()
 env.close()
