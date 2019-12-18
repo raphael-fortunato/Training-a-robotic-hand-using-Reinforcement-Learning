@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import pdb;
+import pdb
 
 class Actor(nn.Module):
     def __init__(self,env_params, hidden_neurons):
@@ -15,7 +15,6 @@ class Actor(nn.Module):
 
 
     def forward(self, x):
-        #pdb.set_trace()
         obs= torch.tensor(x['observation'],dtype=torch.float32)
         des = torch.tensor(x['desired_goal'],dtype=torch.float32)
 
@@ -29,7 +28,6 @@ class Actor(nn.Module):
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
         action = self.max_action * torch.tanh(self.output(x))
-        #pdb.set_trace()
         return action
 
 
