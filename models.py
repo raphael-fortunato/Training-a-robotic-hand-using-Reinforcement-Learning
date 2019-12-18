@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import pdb;
 
 class Actor(nn.Module):
     def __init__(self,env_params, hidden_neurons):
@@ -14,10 +15,21 @@ class Actor(nn.Module):
 
 
     def forward(self, x):
+        #pdb.set_trace()
+        obs= torch.tensor(x['observation'],dtype=torch.float32)
+        des = torch.tensor(x['desired_goal'],dtype=torch.float32)
+
+        if torch.cuda.is_available():
+            x = torch.cat([obs, des], axis=0).cuda()
+        else:
+            x = torch.cat([obs, des], axis=0)
+        x = x.view((1, len(x)))
+
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
-        action = self.max_action * F.tanh(self.output(x))
+        action = self.max_action * torch.tanh(self.output(x))
+        #pdb.set_trace()
         return action
 
 
