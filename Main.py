@@ -7,20 +7,23 @@ import random
 from collections import deque
 
 import torch
+#from torch.utils import SummaryWritter
 
-from rl.memory import SequentialMemory
+#from rl.memory import SequentialMemory
 
 from models import Actor, Critic
 from normalizer import Normalizer
+from her import Her
 
 class Agent:
-    def __init__(self, env, env_params, n_episodes, noise_eps, gamma=.99 ,screen=False,save_path='models'):
+    def __init__(self, env, env_params, n_episodes, noise_eps,batch_size=64, her_size=.5 ,gamma=.99 ,screen=False,save_path='models'):
         self.env= env
         self.env_params = env_params
         self.episodes = n_episodes
         self.hidden_neurons = 256
         self.noise_eps = noise_eps
         self.gamma = gamma
+        self.batch_size = batch_size
         # networks
         self.actor = Actor(self.env_params, self.hidden_neurons).double()
         self.critic = Critic(self.env_params, self.hidden_neurons).double()
@@ -42,6 +45,9 @@ class Agent:
         if not os.path.exists(self.model_path[1]):   
             os.mkdir(self.model_path[1])
         self.screen = screen
+        self.her = Her(self.env.compute_reward)
+        self.her_size = her_size
+        #self.tensorboard = SummaryWritter()
 
 
     def Action(self, step):
@@ -62,39 +68,25 @@ class Agent:
 
 
     def Update(self):
-        minibatch =  random.sample(self.memory, 32)
+        minibatch =  random.sample(self.memory, self.batch_size)
+        state, a_batch, r_batch, d_batch, nextstate = self.her.sampler(minibatch, self.batch_size, self.her_size )
 
-        obs_batch_obs = [data[0]['observation'] for data in minibatch]
-        obs_batch_goal = [data[0]['desired_goal'] for data in minibatch]
-        a_batch = [data[1] for data in minibatch]
-        r_batch = [data[2] for data in minibatch]
-        d_batch = [data[3] for data in minibatch]
-        obs1_batch_obs = [data[0]['observation'] for data in minibatch]
-        obs1_batch_goal = [data[0]['desired_goal'] for data in minibatch]
 
         a_batch = torch.tensor(a_batch,dtype=torch.double)
         r_batch = torch.tensor(r_batch,dtype=torch.double)
         d_batch = torch.tensor(d_batch,dtype=torch.double)
-        obs_batch_obs = torch.tensor(obs_batch_obs,dtype=torch.double)
-        obs_batch_goal = torch.tensor(obs_batch_goal,dtype=torch.double)
-        obs1_batch_obs = torch.tensor(obs1_batch_obs,dtype=torch.double)
-        obs1_batch_goal = torch.tensor(obs1_batch_goal,dtype=torch.double)
-
+        state = torch.tensor(state, dtype=torch.double)
+        nextstate = torch.tensor(nextstate, dtype=torch.double)
         if torch.cuda.is_available():
-            obs_batch_obs = obs_batch_obs.cuda()
-            obs_batch_goal = obs_batch_goal.cuda()
             a_batch = a_batch.cuda()
             r_batch = r_batch.cuda()
             d_batch = d_batch.cuda()
-            obs1_batch_obs = obs_batch_obs.cuda()
-            obs1_batch_goal = obs_batch_goal.cuda()
+            state = state.cuda()
+            nextstate = nextstate.cuda()
     
         with torch.no_grad():
-            state = torch.cat([obs1_batch_obs,obs1_batch_goal],dim=1)
             action_next = self.actor_target.forward(state)
-            
-            statet1 = torch.cat([obs1_batch_obs, obs1_batch_goal], dim=1)
-            q_next = self.critic_target.forward(statet1,action_next)
+            q_next = self.critic_target.forward(nextstate,action_next)
             q_next = q_next.detach()
 
         q_target = r_batch + (self.gamma *(1 - d_batch) * q_next)
@@ -116,6 +108,8 @@ class Agent:
         critic_loss.backward()
         self.critic_optim.step()
         return actor_loss, critic_loss
+
+        # COPY WEIGHTS INTO TARGET NETWORKS EVERY # OF STEPS
         
     def SaveModel(self):
         torch.save(self.actor.state_dict(), self.model_path[0])
@@ -133,12 +127,15 @@ class Agent:
                 #NORMALIZE EVERY INPUT 
                 action = self.Action(state)
                 nextstate, reward, done, info = env.step(action)
-                self.memory.append((state, action, reward, done, nextstate))
+                self.memory.append((state, action, reward, done, nextstate, info))
                 state = nextstate
                
                 if reward ==1:
                     succes_rate.append(True)
                 if done:
+                    if not episode % 100:
+                        pass
+                        #self.tensorboard.add_scalar('Loss', loss)
                     succes_rate.append(False)
                     print(f"Episode: {episode}of{self.episodes}, succes_rate:{np.sum(succes_rate)/len(succes_rate)}")
                     break
@@ -165,6 +162,6 @@ def get_params(env):
 
 env = gym.make('HandManipulateBlock-v0')
 env_param = get_params(env)
-agent = Agent(env,env_param, 6, 1., screen=True)
+agent = Agent(env,env_param, 30, 1., screen=False)
 agent.Explore()
 env.close()
