@@ -62,10 +62,11 @@ class Agent:
 
 
     def Update(self):
-        minibatch =  random.sample(self.memory, 32)
+        minibatch =  Agent.get_prioritized_sample(self.memory, 32, 80)
 
         obs_batch_obs = [data[0]['observation'] for data in minibatch]
         obs_batch_goal = [data[0]['desired_goal'] for data in minibatch]
+        obs_batch_ach_goals = [data[0]['achieved_goal']for data in minibatch]
         a_batch = [data[1] for data in minibatch]
         r_batch = [data[2] for data in minibatch]
         d_batch = [data[3] for data in minibatch]
@@ -77,6 +78,7 @@ class Agent:
         d_batch = torch.tensor(d_batch,dtype=torch.double)
         obs_batch_obs = torch.tensor(obs_batch_obs,dtype=torch.double)
         obs_batch_goal = torch.tensor(obs_batch_goal,dtype=torch.double)
+        obs_batch_ach_goals = torch.tensor(obs_batch_ach_goals,dtype=torch.double)
         obs1_batch_obs = torch.tensor(obs1_batch_obs,dtype=torch.double)
         obs1_batch_goal = torch.tensor(obs1_batch_goal,dtype=torch.double)
 
@@ -146,9 +148,16 @@ class Agent:
                 print('Training Networks')       
                 self.Update()
 
+    def Distance(achieved_goal, desired_goal):
+        return np.sum(np.power(desired_goal - achieved_goal, 2))
 
+    def get_prioritized_sample(memory, sample_size, percentage_from_top_half):
+        newThing = list(memory)
+        newThing = sorted(newThing, key = Agent.getKey)
+        pdb.set_trace()
 
-
+    def getKey(item):
+        return Agent.Distance(item[0]["achieved_goal"],item[0]["desired_goal"])
 
 
 
@@ -165,6 +174,6 @@ def get_params(env):
 
 env = gym.make('HandManipulateBlock-v0')
 env_param = get_params(env)
-agent = Agent(env,env_param, 6, 1., screen=True)
+agent = Agent(env,env_param, 6, 1., screen=False)
 agent.Explore()
 env.close()
