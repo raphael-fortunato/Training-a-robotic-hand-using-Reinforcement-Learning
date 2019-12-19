@@ -155,6 +155,7 @@ class Agent:
         newThing = list(memory)
         newThing = sorted(newThing, key = Agent.getKey)
         pdb.set_trace()
+        # bouw verder aan het splitten en samplen
 
     def getKey(item):
         return Agent.Distance(item[0]["achieved_goal"],item[0]["desired_goal"])
