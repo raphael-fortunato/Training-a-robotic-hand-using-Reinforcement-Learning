@@ -4,8 +4,9 @@ import numpy as np
 import pdb
 
 class Her:
-    def __init__(self, reward_func):
+    def __init__(self, memory_size ,reward_func):
         self. reward_function = reward_func
+        self.buffer = deque(maxlen=memory_size)
 
     def sampler(self, batch, batch_size, her_size):
         length = int(her_size * batch_size)
@@ -27,3 +28,5 @@ class Her:
 
         return np.concatenate([observation, desired_goal], axis=1), action, reward, done, np.concatenate([observationt1, desired_goalt1], axis=1)
 
+    def append(self, experience):
+        self.buffer.append(experience)

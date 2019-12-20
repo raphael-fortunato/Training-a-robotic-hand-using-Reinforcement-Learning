@@ -13,6 +13,8 @@ import torch
 from models import Actor, Critic
 from normalizer import Normalizer
 from her import Her
+from library.stable_baselines.common.vec_env.base_vec_env.vec_normalize import  VecNormalize
+
 
 class Agent:
     def __init__(self, env, env_params, n_episodes, noise_eps,batch_size=64, her_size=.5 ,gamma=.99 ,screen=False,save_path='models'):
@@ -44,8 +46,9 @@ class Agent:
         if not os.path.exists(self.model_path[1]):   
             os.mkdir(self.model_path[1])
         self.screen = screen
-        self.her = Her(self.env.compute_reward)
+        self.her = Her(1_000_000,self.env.compute_reward)
         self.her_size = her_size
+        #self.normalizer = vec_normalize()
         #self.tensorboard = SummaryWritter()
 
 
