@@ -9,7 +9,6 @@ from collections import deque
 import torch
 #from torch.utils import SummaryWritter
 
-#from rl.memory import SequentialMemory
 
 from models import Actor, Critic
 from normalizer import Normalizer
@@ -145,10 +144,6 @@ class Agent:
 
 
 
-
-
-
-
 def get_params(env):
     obs = env.reset()
     params = {'observation': obs['observation'].shape[0],
@@ -159,8 +154,8 @@ def get_params(env):
     params['max_timesteps'] = env._max_episode_steps
     return params
 
-
-env = gym.make('HandManipulateBlock-v0')
+env = gym.make("Acrobot-v1")
+pdb.set_trace()
 env_param = get_params(env)
 agent = Agent(env,env_param, 30, 1., screen=False)
 agent.Explore()
