@@ -12,6 +12,7 @@ from rl.memory import SequentialMemory
 
 from models import Actor, Critic
 from normalizer import Normalizer
+from Prioritized_Experience_sampler import prioritized_sampler
 
 class Agent:
     def __init__(self, env, env_params, n_episodes, noise_eps, gamma=.99 ,screen=False,save_path='models'):
@@ -42,6 +43,7 @@ class Agent:
         if not os.path.exists(self.model_path[1]):   
             os.mkdir(self.model_path[1])
         self.screen = screen
+        self.pr_sampler = prioritized_sampler()
 
 
     def Action(self, step):
@@ -62,7 +64,8 @@ class Agent:
 
 
     def Update(self):
-        minibatch =  Agent.get_prioritized_sample(self.memory, 32, 80)
+        #Creates a batch according to the preferred metric ("distance" or "impact") and the preferred distribution (number between 0 and 1)
+        minibatch =  self.pr_sampler.create_sample(self.memory, 32, 0.8, "distance")
 
         obs_batch_obs = [data[0]['observation'] for data in minibatch]
         obs_batch_goal = [data[0]['desired_goal'] for data in minibatch]
@@ -73,7 +76,7 @@ class Agent:
         obs1_batch_obs = [data[0]['observation'] for data in minibatch]
         obs1_batch_goal = [data[0]['desired_goal'] for data in minibatch]
 
-        a_batch = torch.tensor(a_batch,dtype=torch.double)
+        a_batch = torch.tensor(list(minibatch[:][1]),dtype=torch.double)
         r_batch = torch.tensor(r_batch,dtype=torch.double)
         d_batch = torch.tensor(d_batch,dtype=torch.double)
         obs_batch_obs = torch.tensor(obs_batch_obs,dtype=torch.double)
@@ -148,20 +151,6 @@ class Agent:
                 print('Training Networks')       
                 self.Update()
 
-    def Distance(achieved_goal, desired_goal):
-        return np.sum(np.power(desired_goal - achieved_goal, 2))
-
-    def get_prioritized_sample(memory, sample_size, percentage_from_top_half):
-        newThing = list(memory)
-        newThing = sorted(newThing, key = Agent.getKey)
-        pdb.set_trace()
-        # bouw verder aan het splitten en samplen
-
-    def getKey(item):
-        return Agent.Distance(item[0]["achieved_goal"],item[0]["desired_goal"])
-
-
-
 def get_params(env):
     obs = env.reset()
     params = {'observation': obs['observation'].shape[0],
@@ -175,6 +164,6 @@ def get_params(env):
 
 env = gym.make('HandManipulateBlock-v0')
 env_param = get_params(env)
-agent = Agent(env,env_param, 6, 1., screen=False)
+agent = Agent(env,env_param, 6, 1., screen=True)
 agent.Explore()
 env.close()
