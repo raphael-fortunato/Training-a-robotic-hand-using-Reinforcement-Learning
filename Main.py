@@ -154,9 +154,8 @@ def get_params(env):
     params['max_timesteps'] = env._max_episode_steps
     return params
 
-env = gym.make("Acrobot-v1")
-pdb.set_trace()
+env = gym.make("HandManipulateBlock-v0")
 env_param = get_params(env)
-agent = Agent(env,env_param, 30, 1., screen=False)
+agent = Agent(env,env_param, 30, 1., screen=True)
 agent.Explore()
 env.close()
