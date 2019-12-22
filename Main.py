@@ -13,7 +13,7 @@ import torch
 from models import Actor, Critic
 from normalizer import Normalizer
 from her import Her
-from library.stable_baselines.common.vec_env.base_vec_env.vec_normalize import  VecNormalize
+#from library.stable_baselines.common.vec_env.base_vec_env.vec_normalize import  VecNormalize
 
 
 class Agent:
@@ -156,8 +156,8 @@ def get_params(env):
             }
     params['max_timesteps'] = env._max_episode_steps
     return params
-
-env = gym.make("HandManipulateBlock-v0")
+env = gym.make('MountainCarContinuous-v0')
+#env = gym.make("HandManipulateBlock-v0")
 env_param = get_params(env)
 agent = Agent(env,env_param, 30, 1., screen=True)
 agent.Explore()
