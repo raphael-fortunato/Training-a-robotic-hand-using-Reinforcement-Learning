@@ -11,7 +11,6 @@ import torch
 
 
 from models import Actor, Critic
-from normalizer import Normalizer
 from her import Buffer
 #from library.stable_baselines.common.vec_env.base_vec_env.vec_normalize import  VecNormalize
 
@@ -20,7 +19,7 @@ from her import Buffer
 
 
 class Agent:
-    def __init__(self, env, env_params, n_episodes, noise_eps,batch_size=32, her_size=.5 ,gamma=.99 ,screen=False,save_path='models'):
+    def __init__(self, env, env_params, n_episodes, noise_eps,batch_size=32, her_size=.5 ,gamma=.99, per=True, her=True ,screen=False,save_path='models'):
         self.env= env
         self.env_params = env_params
         self.episodes = n_episodes
@@ -49,7 +48,7 @@ class Agent:
         if not os.path.exists(self.model_path[1]):   
             os.mkdir(self.model_path[1])
         self.screen = screen
-        self.buffer = Buffer(1_000_000, her=True, reward_func=self.env.compute_reward, per=True)
+        self.buffer = Buffer(1_000_000, per=per ,her=her,reward_func=self.env.compute_reward,)
         self.her_size = her_size
         #self.normalizer = vec_normalize()
         #self.tensorboard = SummaryWritter()
@@ -159,9 +158,9 @@ def get_params(env):
     params['max_timesteps'] = env._max_episode_steps
     return params
 
-#env = gym.make('MountainCarContinuous-v0')
+
 env = gym.make("HandManipulateBlock-v0")
 env_param = get_params(env)
-agent = Agent(env,env_param, 30, 1., screen=False)
+agent = Agent(env,env_param, n_episodes=30, noise_eps=1., batch_size=64, screen=True)
 agent.Explore()
 env.close()

@@ -37,7 +37,6 @@ class prioritized_sampler:
         # Slice the sorted memory in half
         lowestHalf = newMemory[:int(len(newMemory)/2)]
         topHalf = newMemory[int(len(newMemory)/2):]
-        pdb.set_trace()
         # Get the samples from the top half and the lower half, according to the percentage that was given
         sample = list(random.sample(topHalf, int(round(sample_size*percentage, 0))))
         newsample = list(random.sample(lowestHalf, sample_size-int(round(sample_size*percentage, 0)))) 
