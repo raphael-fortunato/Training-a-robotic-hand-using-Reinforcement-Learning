@@ -9,7 +9,7 @@ from collections import deque
 import torch
 #from torch.utils import SummaryWritter
 
-
+from normalizer import Normalizer
 from models import Actor, Critic
 from her import Buffer
 #from library.stable_baselines.common.vec_env.base_vec_env.vec_normalize import  VecNormalize
@@ -50,7 +50,7 @@ class Agent:
         self.screen = screen
         self.buffer = Buffer(1_000_000, per=per ,her=her,reward_func=self.env.compute_reward,)
         self.her_size = her_size
-        #self.normalizer = vec_normalize()
+        self.norm = Normalizer(self.env_params, self.gamma)
         #self.tensorboard = SummaryWritter()
 
 
@@ -123,14 +123,16 @@ class Agent:
         succes_rate = []
         for episode in range(self.episodes):
             state = env.reset()
+            state = self.norm.normalize_state(state)
             for t in range(self.env_params['max_timesteps']): 
-
                 if self.screen:
                     env.render()
 
-                #NORMALIZE EVERY INPUT 
                 action = self.Action(state)
                 nextstate, reward, done, info = env.step(action)
+
+                nextstate = self.norm.normalize_state(nextstate)
+                reward = self.norm.normalize_reward(reward)
                 self.buffer.append((state, action, reward, done, nextstate, info))
                 state = nextstate
                
@@ -161,6 +163,6 @@ def get_params(env):
 
 env = gym.make("HandManipulateBlock-v0")
 env_param = get_params(env)
-agent = Agent(env,env_param, n_episodes=30, noise_eps=1., batch_size=64, screen=True)
+agent = Agent(env,env_param, n_episodes=30, noise_eps=1., batch_size=64, screen=False)
 agent.Explore()
 env.close()
