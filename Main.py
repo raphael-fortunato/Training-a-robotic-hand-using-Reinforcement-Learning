@@ -12,12 +12,15 @@ import torch
 
 from models import Actor, Critic
 from normalizer import Normalizer
-from her import Her
+from her import Buffer
 #from library.stable_baselines.common.vec_env.base_vec_env.vec_normalize import  VecNormalize
 
 
+
+
+
 class Agent:
-    def __init__(self, env, env_params, n_episodes, noise_eps,batch_size=64, her_size=.5 ,gamma=.99 ,screen=False,save_path='models'):
+    def __init__(self, env, env_params, n_episodes, noise_eps,batch_size=32, her_size=.5 ,gamma=.99 ,screen=False,save_path='models'):
         self.env= env
         self.env_params = env_params
         self.episodes = n_episodes
@@ -46,10 +49,11 @@ class Agent:
         if not os.path.exists(self.model_path[1]):   
             os.mkdir(self.model_path[1])
         self.screen = screen
-        self.her = Her(1_000_000,self.env.compute_reward)
+        self.buffer = Buffer(1_000_000, her=True, reward_func=self.env.compute_reward, per=True)
         self.her_size = her_size
         #self.normalizer = vec_normalize()
         #self.tensorboard = SummaryWritter()
+
 
 
     def Action(self, step):
@@ -70,15 +74,14 @@ class Agent:
 
 
     def Update(self):
-        minibatch =  random.sample(self.memory, self.batch_size)
-        state, a_batch, r_batch, d_batch, nextstate = self.her.sampler(minibatch, self.batch_size, self.her_size )
-
+        state, a_batch, r_batch, d_batch, nextstate = self.buffer.sampler(self.batch_size, self.her_size, .8)
 
         a_batch = torch.tensor(a_batch,dtype=torch.double)
         r_batch = torch.tensor(r_batch,dtype=torch.double)
         d_batch = torch.tensor(d_batch,dtype=torch.double)
         state = torch.tensor(state, dtype=torch.double)
         nextstate = torch.tensor(nextstate, dtype=torch.double)
+
         if torch.cuda.is_available():
             a_batch = a_batch.cuda()
             r_batch = r_batch.cuda()
@@ -129,7 +132,7 @@ class Agent:
                 #NORMALIZE EVERY INPUT 
                 action = self.Action(state)
                 nextstate, reward, done, info = env.step(action)
-                self.memory.append((state, action, reward, done, nextstate, info))
+                self.buffer.append((state, action, reward, done, nextstate, info))
                 state = nextstate
                
                 if reward ==1:
@@ -141,10 +144,9 @@ class Agent:
                     succes_rate.append(False)
                     print(f"Episode: {episode}of{self.episodes}, succes_rate:{np.sum(succes_rate)/len(succes_rate)}")
                     break
-            if not episode % 5:  
+            if not episode % 5 and episode != 0:  
                 print('Training Networks')       
                 self.Update()
-
 
 
 def get_params(env):
@@ -156,9 +158,10 @@ def get_params(env):
             }
     params['max_timesteps'] = env._max_episode_steps
     return params
-env = gym.make('MountainCarContinuous-v0')
-#env = gym.make("HandManipulateBlock-v0")
+
+#env = gym.make('MountainCarContinuous-v0')
+env = gym.make("HandManipulateBlock-v0")
 env_param = get_params(env)
-agent = Agent(env,env_param, 30, 1., screen=True)
+agent = Agent(env,env_param, 30, 1., screen=False)
 agent.Explore()
 env.close()
