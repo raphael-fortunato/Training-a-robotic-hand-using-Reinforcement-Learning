@@ -193,7 +193,6 @@ class Agent:
                     significant_moves.append(significance)
                     end = time.time()
                     timeline.append(end-start)
-                    #tqdm.write(f"Episode: {episode}of{self.episodes}, succes_rate:{np.sum(succes_rate)/len(succes_rate)}")
                     iterator.set_postfix(succes_rate = np.sum(succes_rate)/len(succes_rate))
                     if not episode % self.aggregate_stats_every:
                         average_reward = sum(ep_rewards)/len(ep_rewards)
@@ -222,8 +221,7 @@ def get_params(env):
     return params
 
 
-loadmodels = ('models//Actor.pt', 'models//Critic.pt')
-#env = gym.make("FetchPush-v1")
+#loadmodels = ('models//Actor.pt', 'models//Critic.pt')
 env = gym.make("HandManipulateBlock-v0")
 env_param = get_params(env)
 agent = Agent(env,env_param, n_episodes=50, noise_eps=3., batch_size=256 ,screen=False)
