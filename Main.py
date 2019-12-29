@@ -154,11 +154,13 @@ class Agent:
 
 
     def Explore(self):
+        first = True
+        onlyfiles = []
         succes_rate = []
         ep_rewards = []
         significant_moves = []
         timeline = []
-        iterator = tqdm(range(self.episodes), unit='episode')
+        iterator = tqdm(range(self.episodes+1), unit='episode')
         for episode in iterator:
             start = time.time()
             state = env.reset()
@@ -185,15 +187,15 @@ class Agent:
                 state = nextstate
 
                 if done:
-                    # if episode in self.record_episodes:
-                    #     self.record(episode)
+                    if episode in self.record_episodes:
+                        self.record(episode)
                     if not info['is_success']:
                         succes_rate.append(False)
                     ep_rewards.append(total_rewards)
                     significant_moves.append(significance)
                     end = time.time()
                     timeline.append(end-start)
-                    iterator.set_postfix(succes_rate = np.sum(succes_rate)/len(succes_rate))
+                    iterator.set_postfix(SuccesRate = np.sum(succes_rate)/len(succes_rate), tensorboard_dir = onlyfiles)
                     if not episode % self.aggregate_stats_every:
                         average_reward = sum(ep_rewards)/len(ep_rewards)
                         min_reward = min(ep_rewards)
@@ -203,6 +205,11 @@ class Agent:
                         timing =sum(timeline)
                         self.tensorboard.update_stats(Succes_Rate=succes,reward_avg=average_reward, reward_min=min_reward, reward_max=max_reward, SignificantMove=sig, elapsed_time=timing)
                         timeline.clear() , ep_rewards.clear(), significant_moves.clear()
+                        if first:
+                            mypath = "/home/rfortunato1994/logs"
+                            onlyfiles = [os.path.join(mypath, f) for f in os.listdir(mypath) if os.path.isfile(os.path.join(mypath, f))]
+                            first = False
+
                     break
             if not episode % 10 and episode != 0:  
                 iterator.write(f'Training Networks - {episode}')       
