@@ -205,10 +205,6 @@ class Agent:
                         timing =sum(timeline)
                         self.tensorboard.update_stats(Succes_Rate=succes,reward_avg=average_reward, reward_min=min_reward, reward_max=max_reward, SignificantMove=sig, elapsed_time=timing)
                         timeline.clear() , ep_rewards.clear(), significant_moves.clear()
-                        if first:
-                            mypath = "/home/rfortunato1994/logs"
-                            onlyfiles = [os.path.join(mypath, f) for f in os.listdir(mypath) if os.path.isfile(os.path.join(mypath, f))]
-                            first = False
 
                     break
             if not episode % 10 and episode != 0:  
