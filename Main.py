@@ -20,7 +20,7 @@ import time
 
 class Agent:
     def __init__(self, env, env_params, n_episodes,noise_eps,tau=.95, random_eps=.3,batch_size=256, her_size=.5, \
-                gamma=.99, per=True, her=True ,screen=False,modelpath='models' ,savepath=None ,agent_name='ddpg',save_path='models', record_episode = [0 ,.1 , .15, .25, .5, .75] ,aggregate_stats_every=100):
+                gamma=.99, per=True, her=True ,screen=False,modelpath='models' ,savepath=None ,agent_name='ddpg',save_path='models', record_episode = [0 ,.1 , .15, .25, .5, .75, 1.] ,aggregate_stats_every=100):
         self.env= env
         self.env_params = env_params
         self.episodes = n_episodes
@@ -77,7 +77,6 @@ class Agent:
             # choose if use the random actions
             # need to specify random.uniform
             action += np.random.binomial(1, self.random_eps, 1)[0] * (random_actions - action)
-            self.noise_eps *= .99
         return action
 
     def Update(self, episode):
@@ -123,7 +122,8 @@ class Agent:
         
         self.SoftUpdateTarget(self.critic, self.critic_target)
         self.SoftUpdateTarget(self.actor, self.actor_target)
-    
+        if self.noise_eps > .2:
+            self.noise_eps *= .99
         return actor_loss, critic_loss
 
     def record(self, episode):
@@ -133,12 +133,10 @@ class Agent:
             recorder = VideoRecorder(self.env, path=f'videos\\episode-{episode}.mp4')
             done =False
             step = self.env.reset()
-            step = self.norm.normalize_state(step)
             while not done:
                 recorder.capture_frame()
                 action = self.Action(step)
                 nextstate,reward,done,info = self.env.step(action)
-                nextstate = self.norm.normalize_state(nextstate)
                 state = nextstate
             recorder.close()
         except Exception as e:
@@ -169,7 +167,6 @@ class Agent:
         for episode in iterator:
             start = time.time()
             state = env.reset()
-            #state = self.norm.normalize_state(state)
             self.tensorboard.step = episode
             total_rewards = 0
             significance = 0
@@ -234,6 +231,10 @@ def get_params(env):
 env = gym.make('MountainCarContinuous-v0')
 
 env_param = get_params(env)
+<<<<<<< HEAD
 agent = Agent(env,env_param, n_episodes=20_000, noise_eps=3., batch_size=256 ,her=False, per=False ,screen=False)
+=======
+agent = Agent(env,env_param, n_episodes=50, noise_eps=3., batch_size=256, her=False, per=False ,screen=False)
+>>>>>>> 864aee6... bug fixes
 agent.Explore()
 env.close()
