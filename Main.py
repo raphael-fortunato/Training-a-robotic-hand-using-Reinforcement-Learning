@@ -234,6 +234,6 @@ def get_params(env):
 env = gym.make('MountainCarContinuous-v0')
 
 env_param = get_params(env)
-agent = Agent(env,env_param, n_episodes=20_000, noise_eps=3., batch_size=256 ,screen=False)
+agent = Agent(env,env_param, n_episodes=20_000, noise_eps=3., batch_size=256 ,her=False, per=False ,screen=False)
 agent.Explore()
 env.close()
