@@ -15,10 +15,8 @@ class Actor(nn.Module):
 
 
     def forward(self, x):
-
-
         if torch.cuda.is_available():
-            x = x.cuda()
+            x = torch.tensor(x,device='cuda')
         else:
             x = torch.tensor(x)
             

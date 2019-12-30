@@ -21,7 +21,7 @@ class Agent:
         self.env= env
         self.env_params = env_params
         self.episodes = n_episodes
-        self.hidden_neurons = 256
+        self.hidden_neurons = 14
         self.noise_eps = noise_eps
         self.random_eps = random_eps
         self.gamma = gamma
@@ -60,8 +60,6 @@ class Agent:
 
     def Action(self, step):
         with torch.no_grad():
-            step = np.concatenate([step['observation'], step['desired_goal']])
-            step = torch.tensor(step)
             action = self.actor_target.forward(step).detach().cpu().numpy()
             action +=self.noise_eps * self.env_params['max_action'] * np.random.randn(*action.shape)
             action = np.clip(action, -self.env_params['max_action'], self.env_params['max_action'])
@@ -71,7 +69,7 @@ class Agent:
             # choose if use the random actions
             # need to specify random.uniform
             action += np.random.binomial(1, self.random_eps, 1)[0] * (random_actions - action)
-        return action.squeeze()
+        return action
 
     def Update(self, episode):
         state, a_batch, r_batch, d_batch, nextstate = self.buffer.sampler(self.batch_size, self.her_size, .8)
@@ -164,7 +162,7 @@ class Agent:
         for episode in iterator:
             start = time.time()
             state = env.reset()
-            state = self.norm.normalize_state(state)
+            #state = self.norm.normalize_state(state)
             self.tensorboard.step = episode
             total_rewards = 0
             significance = 0
@@ -176,21 +174,21 @@ class Agent:
                 nextstate, reward, done, info = env.step(action)
 
                 total_rewards += reward
-                if info['is_success']:
-                    succes_rate.append(True)
+                # if info['is_success']:
+                #     succes_rate.append(True)
 
-                nextstate = self.norm.normalize_state(nextstate)
-                reward = self.norm.normalize_reward(reward)
+                # nextstate = self.norm.normalize_state(nextstate)
+                # reward = self.norm.normalize_reward(reward)
                 self.buffer.append((state, action, reward, done, nextstate, info))
 
-                significance += abs(np.sum(state['observation'] - nextstate['observation']))
+                significance += abs(np.sum(state - nextstate))
                 state = nextstate
 
                 if done:
                     if episode in self.record_episodes:
                         self.record(episode)
-                    if not info['is_success']:
-                        succes_rate.append(False)
+                    # if not info['is_success']:
+                    #     succes_rate.append(False)
                     ep_rewards.append(total_rewards)
                     significant_moves.append(significance)
                     end = time.time()
@@ -215,8 +213,9 @@ class Agent:
 
 def get_params(env):
     obs = env.reset()
-    params = {'observation': obs['observation'].shape[0],
-            'goal': obs['desired_goal'].shape[0],
+
+    params = {'observation': obs.shape[0],
+            'goal' : np.empty(0).shape[0],
             'action': env.action_space.shape[0],
             'max_action': env.action_space.high[0],
             }
@@ -225,8 +224,10 @@ def get_params(env):
 
 
 #loadmodels = ('models//Actor.pt', 'models//Critic.pt')
-env = gym.make("HandManipulateBlock-v0")
+#env = gym.make("HandManipulateBlock-v0")
+env = gym.make('MountainCarContinuous-v0')
+
 env_param = get_params(env)
-agent = Agent(env,env_param, n_episodes=50, noise_eps=3., batch_size=256 ,screen=False)
+agent = Agent(env,env_param, n_episodes=50, noise_eps=3., batch_size=256 ,screen=True)
 agent.Explore()
 env.close()
