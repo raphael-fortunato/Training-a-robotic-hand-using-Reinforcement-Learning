@@ -12,6 +12,9 @@ from normalizer import Normalizer
 from models import Actor, Critic
 from her import Buffer
 from CustomTensorBoard import ModifiedTensorBoard
+from tensorboard import default
+from tensorboard import program
+import threading
 import time
 
 
@@ -52,10 +55,15 @@ class Agent:
         self.buffer = Buffer(1_000_000, per=per ,her=her,reward_func=self.env.compute_reward,)
         self.her_size = her_size
         self.norm = Normalizer(self.env_params, self.gamma)
-        self.writer = SummaryWriter(f"runs/{agent_name}")
-        self.tensorboard = ModifiedTensorBoard(log_dir = f"logs")
+        self.logs = os.path.join(os.getcwd(), 'logs')
+        self.tensorboard = ModifiedTensorBoard(log_dir = self.logs)
         self.aggregate_stats_every =aggregate_stats_every
         self.record_episodes = [int(eps *self.episodes) for eps in record_episode]
+        self.t = threading.Thread(target=self.LaunchTensorBoard, args=([]))
+        self.t.start()
+
+    def LaunchTensorBoard(self):
+        os.system('tensorboard --logdir=' + self.logs+ ' --host localhost')
 
 
     def Action(self, step):
@@ -153,8 +161,6 @@ class Agent:
 
 
     def Explore(self):
-        first = True
-        onlyfiles = []
         succes_rate = []
         ep_rewards = []
         significant_moves = []
@@ -228,6 +234,6 @@ def get_params(env):
 env = gym.make('MountainCarContinuous-v0')
 
 env_param = get_params(env)
-agent = Agent(env,env_param, n_episodes=50, noise_eps=3., batch_size=256 ,screen=True)
+agent = Agent(env,env_param, n_episodes=20_000, noise_eps=3., batch_size=256 ,screen=False)
 agent.Explore()
 env.close()
