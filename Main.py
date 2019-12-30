@@ -17,7 +17,7 @@ import time
 
 class Agent:
     def __init__(self, env, env_params, n_episodes,noise_eps,tau=.95, random_eps=.3,batch_size=256, her_size=.5, \
-                gamma=.99, per=True, her=True ,screen=False,modelpath='models' ,savepath=None ,agent_name='ddpg',save_path='models', record_episode = [0,200, 500, 1000] ,aggregate_stats_every=100):
+                gamma=.99, per=True, her=True ,screen=False,modelpath='models' ,savepath=None ,agent_name='ddpg',save_path='models', record_episode = [0 ,.1 , .15, .25, .5, .75] ,aggregate_stats_every=100):
         self.env= env
         self.env_params = env_params
         self.episodes = n_episodes
@@ -55,7 +55,7 @@ class Agent:
         self.writer = SummaryWriter(f"runs/{agent_name}")
         self.tensorboard = ModifiedTensorBoard(log_dir = f"logs")
         self.aggregate_stats_every =aggregate_stats_every
-        self.record_episodes = record_episode
+        self.record_episodes = [int(eps *self.episodes) for eps in record_episode]
 
 
     def Action(self, step):
@@ -69,6 +69,7 @@ class Agent:
             # choose if use the random actions
             # need to specify random.uniform
             action += np.random.binomial(1, self.random_eps, 1)[0] * (random_actions - action)
+            self.noise_eps *= .99
         return action
 
     def Update(self, episode):
@@ -193,16 +194,15 @@ class Agent:
                     significant_moves.append(significance)
                     end = time.time()
                     timeline.append(end-start)
-                    iterator.set_postfix(SuccesRate = np.sum(succes_rate)/len(succes_rate), tensorboard_dir = onlyfiles)
+                    iterator.set_postfix(average_reward = sum(ep_rewards)/len(ep_rewards), epsilon = self.noise_eps)
                     if not episode % self.aggregate_stats_every:
                         average_reward = sum(ep_rewards)/len(ep_rewards)
                         min_reward = min(ep_rewards)
                         max_reward = max(ep_rewards)
-                        succes = np.sum(succes_rate[-self.aggregate_stats_every:])/len(succes_rate[-self.aggregate_stats_every:])
                         sig = sum(significant_moves)/len(significant_moves)
                         timing =sum(timeline)
-                        self.tensorboard.update_stats(Succes_Rate=succes,reward_avg=average_reward, reward_min=min_reward, reward_max=max_reward, SignificantMove=sig, elapsed_time=timing)
-                        timeline.clear() , ep_rewards.clear(), significant_moves.clear()
+                        self.tensorboard.update_stats(reward_avg=average_reward, reward_min=min_reward, reward_max=max_reward, SignificantMove=sig, elapsed_time=timing)
+                        timeline.clear() , significant_moves.clear()
 
                     break
             if not episode % 10 and episode != 0:  
