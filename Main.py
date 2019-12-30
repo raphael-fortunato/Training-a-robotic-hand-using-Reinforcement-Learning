@@ -63,7 +63,7 @@ class Agent:
         self.t.start()
 
     def LaunchTensorBoard(self):
-        os.system('tensorboard --logdir=' + self.logs+ ' --host localhost')
+        os.system('tensorboard --logdir=' + self.logs+ ' --host 0.0.0.0')
 
 
     def Action(self, step):
@@ -130,7 +130,7 @@ class Agent:
         try:
             if not os.path.exists("videos"):
                 os.mkdir('videos')
-            recorder = VideoRecorder(self.env, path=f'videos\\episode-{episode}.mp4')
+            recorder = VideoRecorder(self.env, path=f'videos/episode-{episode}.mp4')
             done =False
             step = self.env.reset()
             while not done:
@@ -143,8 +143,8 @@ class Agent:
             print(e)
 
     def SaveModels(self):
-        torch.save(self.actor.state_dict(), self.savepath+ "\\Actor.pt")
-        torch.save(self.critic.state_dict(), self.savepath+ "\\Critic.pt") 
+        torch.save(self.actor.state_dict(), self.savepath+ "/Actor.pt")
+        torch.save(self.critic.state_dict(), self.savepath+ "/Critic.pt") 
 
     def LoadModels(self, actorpath, criticpath):
         actor = Actor(self.env_params, self.hidden_neurons)
@@ -231,10 +231,6 @@ def get_params(env):
 env = gym.make('MountainCarContinuous-v0')
 
 env_param = get_params(env)
-<<<<<<< HEAD
 agent = Agent(env,env_param, n_episodes=20_000, noise_eps=3., batch_size=256 ,her=False, per=False ,screen=False)
-=======
-agent = Agent(env,env_param, n_episodes=50, noise_eps=3., batch_size=256, her=False, per=False ,screen=False)
->>>>>>> 864aee6... bug fixes
 agent.Explore()
 env.close()
