@@ -55,15 +55,15 @@ class Agent:
         self.buffer = Buffer(1_000_000, per=per ,her=her,reward_func=self.env.compute_reward,)
         self.her_size = her_size
         self.norm = Normalizer(self.env_params, self.gamma)
-        self.logs = os.path.join(os.getcwd(), 'logs')
-        self.tensorboard = ModifiedTensorBoard(log_dir = self.logs)
+
+        self.tensorboard = ModifiedTensorBoard(log_dir = 'logs')
         self.aggregate_stats_every =aggregate_stats_every
         self.record_episodes = [int(eps *self.episodes) for eps in record_episode]
         self.t = threading.Thread(target=self.LaunchTensorBoard, args=([]))
         self.t.start()
 
     def LaunchTensorBoard(self):
-        os.system('tensorboard --logdir=' + self.logs+ ' --host 0.0.0.0')
+        os.system('tensorboard --logdir=' + 'logs'+ ' --host 0.0.0.0')
 
 
     def Action(self, step):
