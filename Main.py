@@ -123,7 +123,7 @@ class Agent:
         self.SoftUpdateTarget(self.critic, self.critic_target)
         self.SoftUpdateTarget(self.actor, self.actor_target)
         if self.noise_eps > .2:
-            self.noise_eps *= .99
+            self.noise_eps *= .995
         return actor_loss, critic_loss
 
     def record(self, episode):
@@ -208,8 +208,7 @@ class Agent:
                         timeline.clear() , significant_moves.clear()
 
                     break
-            if not episode % 10 and episode != 0:  
-                iterator.write(f'Training Networks - {episode}')       
+            if not episode % 100 and episode != 0:        
                 self.Update(episode)
         self.SaveModels()
 
@@ -226,11 +225,11 @@ def get_params(env):
     return params
 
 
-#loadmodels = ('models//Actor.pt', 'models//Critic.pt')
+loadmodels = ('models/Actor.pt', 'models/Critic.pt')
 #env = gym.make("HandManipulateBlock-v0")
 env = gym.make('MountainCarContinuous-v0')
 
 env_param = get_params(env)
-agent = Agent(env,env_param, n_episodes=20_000, noise_eps=1., batch_size=256 ,her=False, per=False ,screen=False)
+agent = Agent(env,env_param, n_episodes=2_000,save_path=loadmodels ,noise_eps=3., batch_size=2560 ,her=False, per=False ,screen=False)
 agent.Explore()
 env.close()
