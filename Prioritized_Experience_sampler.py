@@ -1,11 +1,12 @@
 import numpy as np
 import random
 import pdb
+from inspect import currentframe, getframeinfo
+frameinfo = getframeinfo(currentframe())
 
 class prioritized_sampler:
     def __init__(self, metric='distance'):
         self.metric = metric
-
 
     # Calculates the Euclidean distance between two vectors
     def Distance(self, achieved_goal, desired_goal):
@@ -24,7 +25,7 @@ class prioritized_sampler:
 
     #Samples the memory according to the given distribution and according to the given metric
     def create_sample(self, memory, sample_size, percentage):
-
+    
         # Make a list and then sort it according to the given metric
         newMemory = list(memory)
         if self.metric == "distance":
@@ -33,6 +34,8 @@ class prioritized_sampler:
             newMemory = sorted(newMemory, key = self.getImpact)
         else:
             raise KeyError("Mode does not exist, only \"distance\" or \"impact\"")
+            
+        
 
         # Slice the sorted memory in half
         lowestHalf = newMemory[:int(len(newMemory)/2)]

@@ -7,12 +7,14 @@ import random
 from collections import deque
 from tqdm import tqdm
 import torch
-from torch.utils.tensorboard import SummaryWriter
+#from torch.utils.tensorboard import SummaryWriter
 from normalizer import Normalizer
 from models import Actor, Critic
 from her import Buffer
-from CustomTensorBoard import ModifiedTensorBoard
+#from CustomTensorBoard import ModifiedTensorBoard
 import time
+from inspect import currentframe, getframeinfo
+frameinfo = getframeinfo(currentframe())
 
 
 class Agent:
@@ -52,8 +54,8 @@ class Agent:
         self.buffer = Buffer(1_000_000, per=per ,her=her,reward_func=self.env.compute_reward,)
         self.her_size = her_size
         self.norm = Normalizer(self.env_params, self.gamma)
-        self.writer = SummaryWriter(f"runs/{agent_name}")
-        self.tensorboard = ModifiedTensorBoard(log_dir = f"logs")
+        #self.writer = SummaryWriter(f"runs/{agent_name}")
+        #self.tensorboard = ModifiedTensorBoard(log_dir = f"logs")
         self.aggregate_stats_every =aggregate_stats_every
         self.record_episodes = record_episode
 
@@ -74,7 +76,8 @@ class Agent:
         return action.squeeze()
 
     def Update(self, episode):
-        state, a_batch, r_batch, d_batch, nextstate = self.buffer.sampler(self.batch_size, self.her_size, .8)
+  
+        state, a_batch, r_batch, d_batch, nextstate = self.buffer.Sampler(self.batch_size, .8)
 
         a_batch = torch.tensor(a_batch,dtype=torch.double)
         r_batch = torch.tensor(r_batch,dtype=torch.double)
@@ -104,7 +107,7 @@ class Agent:
         actor_loss += (action / self.env_params['max_action']).pow(2).mean()
 
         #writting to tensorboard for visualisation
-        self.tensorboard.update_stats(ActorLoss=actor_loss/self.batch_size, CriticLoss=critic_loss/self.batch_size, episode=episode)
+        #self.tensorboard.update_stats(ActorLoss=actor_loss/self.batch_size, CriticLoss=critic_loss/self.batch_size, episode=episode)
 
         self.actor_optim.zero_grad()
         actor_loss.backward()
@@ -159,11 +162,15 @@ class Agent:
         significant_moves = []
         timeline = []
         iterator = tqdm(range(self.episodes), unit='episode')
+        id= 0
         for episode in iterator:
+            
+            temp_buffer = []
+            
             start = time.time()
             state = env.reset()
             state = self.norm.normalize_state(state)
-            self.tensorboard.step = episode
+            #self.tensorboard.step = episode
             total_rewards = 0
             significance = 0
             for t in range(self.env_params['max_timesteps']): 
@@ -179,12 +186,25 @@ class Agent:
 
                 nextstate = self.norm.normalize_state(nextstate)
                 reward = self.norm.normalize_reward(reward)
-                self.buffer.append((state, action, reward, done, nextstate, info))
+                temp_buffer.append((state, action, reward, done, nextstate, info, id ))
+                id = id +1
 
                 significance += abs(np.sum(state['observation'] - nextstate['observation']))
                 state = nextstate
 
                 if done:
+                    
+                    # Create a batch with HER future replays
+                    HER_batch = self.buffer.HERFutureBatch(temp_buffer)
+                    
+                    # Add the original experiences
+                    for experience in temp_buffer:
+                        self.buffer.append(experience)
+                    
+                    # Add the HER Replay experiences
+                    for experience in HER_batch:
+                        self.buffer.append(experience)
+                    
                     # if episode in self.record_episodes:
                     #     self.record(episode)
                     if not info['is_success']:
@@ -202,7 +222,7 @@ class Agent:
                         succes = np.sum(succes_rate[-self.aggregate_stats_every:])/len(succes_rate[-self.aggregate_stats_every:])
                         sig = sum(significant_moves)/len(significant_moves)
                         timing =sum(timeline)
-                        self.tensorboard.update_stats(Succes_Rate=succes,reward_avg=average_reward, reward_min=min_reward, reward_max=max_reward, SignificantMove=sig, elapsed_time=timing)
+                        #self.tensorboard.update_stats(Succes_Rate=succes,reward_avg=average_reward, reward_min=min_reward, reward_max=max_reward, SignificantMove=sig, elapsed_time=timing)
                         timeline.clear() , ep_rewards.clear(), significant_moves.clear()
                     break
             if not episode % 10 and episode != 0:  
