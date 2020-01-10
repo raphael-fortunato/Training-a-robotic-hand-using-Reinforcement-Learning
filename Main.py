@@ -7,12 +7,13 @@ import random
 from collections import deque
 from tqdm import tqdm
 import torch
-from torch.utils.tensorboard import SummaryWriter
 from normalizer import Normalizer
 from models import Actor, Critic
 from her import Buffer
 from CustomTensorBoard import ModifiedTensorBoard
 import time
+from inspect import currentframe, getframeinfo
+frameinfo = getframeinfo(currentframe())
 
 
 class Agent:
@@ -52,7 +53,6 @@ class Agent:
         self.buffer = Buffer(1_000_000, per=per ,her=her,reward_func=self.env.compute_reward,)
         self.her_size = her_size
         self.norm = Normalizer(self.env_params, self.gamma)
-        self.writer = SummaryWriter(f"runs/{agent_name}")
         self.tensorboard = ModifiedTensorBoard(log_dir = f"logs")
         self.aggregate_stats_every =aggregate_stats_every
         self.record_episodes = record_episode
@@ -74,7 +74,7 @@ class Agent:
         return action.squeeze()
 
     def Update(self, episode):
-        state, a_batch, r_batch, d_batch, nextstate = self.buffer.sampler(self.batch_size, self.her_size, .8)
+        state, a_batch, r_batch, d_batch, nextstate = self.buffer.Sampler(self.batch_size, .8)
 
         a_batch = torch.tensor(a_batch,dtype=torch.double)
         r_batch = torch.tensor(r_batch,dtype=torch.double)
@@ -193,7 +193,7 @@ class Agent:
                     significant_moves.append(significance)
                     end = time.time()
                     timeline.append(end-start)
-                    #tqdm.write(f"Episode: {episode}of{self.episodes}, succes_rate:{np.sum(succes_rate)/len(succes_rate)}")
+
                     iterator.set_postfix(succes_rate = np.sum(succes_rate)/len(succes_rate))
                     if not episode % self.aggregate_stats_every:
                         average_reward = sum(ep_rewards)/len(ep_rewards)
@@ -211,19 +211,19 @@ class Agent:
 
 
 def get_params(env):
-    obs = env.reset()
-    params = {'observation': obs['observation'].shape[0],
-            'goal': obs['desired_goal'].shape[0],
-            'action': env.action_space.shape[0],
-            'max_action': env.action_space.high[0],
-            }
-    params['max_timesteps'] = env._max_episode_steps
-    return params
+	obs = env.reset()
+	params = {'observation': obs['observation'].shape[0],
+			'goal': obs['desired_goal'].shape[0],
+			'action': env.action_space.shape[0],
+			'max_action': env.action_space.high[0],
+			}
+	params['max_timesteps'] = env._max_episode_steps
+	return params
 
 
 #loadmodels = ('models/Actor.pt', 'models/Critic.pt')
 env = gym.make("HandManipulateBlock-v0")
 env_param = get_params(env)
-agent = Agent(env,env_param, n_episodes=50, noise_eps=3., batch_size=256 ,screen=False)
+agent = Agent(env,env_param, n_episodes=30, noise_eps=3., batch_size=32 ,screen=False)
 agent.Explore()
 env.close()
