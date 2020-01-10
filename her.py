@@ -3,7 +3,6 @@ from collections import deque
 import numpy as np
 import random
 import pdb
-
 from Prioritized_Experience_sampler import prioritized_sampler
 
 class Buffer:
@@ -41,7 +40,6 @@ class Buffer:
             desired_goal = substitute_goal + desired_goal[length:]
 
         return np.concatenate([observation, desired_goal], axis=1), action, reward, done, np.concatenate([observationt1, desired_goalt1], axis=1)
-
 
     def append(self, experience):
         self.buffer.append(experience)
