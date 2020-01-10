@@ -20,7 +20,7 @@ class Buffer:
             #Creates a batch according to the preferred metric ("distance" or "impact") and the preferred distribution (number between 0 and 1)
             batch =  self.per_sampler.create_sample(self.buffer, batch_size, per_percentage )
         else:
-            batch = random.sampler(self.buffer, batch_size)
+            batch = random.sample(self.buffer, batch_size)
 
         length = int(her_size * batch_size)
 
