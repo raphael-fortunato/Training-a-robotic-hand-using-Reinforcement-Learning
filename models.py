@@ -15,11 +15,11 @@ class Actor(nn.Module):
 
 
     def forward(self, x):
-        if torch.cuda.is_available():
-            x = torch.tensor(x,device='cuda')
-        else:
+        if type(x) is not torch.Tensor:
             x = torch.tensor(x)
-            
+        if torch.cuda.is_available():
+            x = x.cuda()
+           
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
