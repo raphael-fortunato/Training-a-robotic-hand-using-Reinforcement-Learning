@@ -241,14 +241,14 @@ class Agent:
              target_param.data.copy_(self.tau * param.data + (1.0 - self.tau) * target_param.data)
 
 def get_params(env):
-    obs = env.reset()
-    params = {'observation': obs['observation'].shape[0],
-            'goal': obs['desired_goal'].shape[0],
-            'action': env.action_space.shape[0],
-            'max_action': env.action_space.high[0],
-            }
-    params['max_timesteps'] = env._max_episode_steps
-    return params
+	obs = env.reset()
+	params = {'observation': obs['observation'].shape[0],
+			'goal': obs['desired_goal'].shape[0],
+			'action': env.action_space.shape[0],
+			'max_action': env.action_space.high[0],
+			}
+	params['max_timesteps'] = env._max_episode_steps
+	return params
 
 
 
