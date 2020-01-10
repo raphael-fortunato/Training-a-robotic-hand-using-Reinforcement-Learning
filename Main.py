@@ -16,11 +16,14 @@ from tensorboard import default
 from tensorboard import program
 import threading
 import time
+from library.stable_baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
+
 
 
 class Agent:
-    def __init__(self, env, env_params, n_episodes,noise_eps,tau=.95, random_eps=.3,batch_size=256, her_size=.5, \
-                gamma=.99, per=True, her=True ,screen=False,modelpath='models' ,savepath=None ,agent_name='ddpg',save_path='models', record_episode = [0 ,.1 , .15, .25, .5, .75, 1.] ,aggregate_stats_every=100):
+    def __init__(self, test_env ,env, env_params, n_episodes,noise_eps,tau=.95, random_eps=.3,batch_size=256, her_size=.5, \
+                gamma=.99, per=True, her=True ,screen=False,modelpath='models' ,savepath=None ,agent_name='ddpg',save_path='models',tensorboard=True ,record_episode = [0 ,.1 , .15, .25, .5, .75, 1.] ,aggregate_stats_every=100):
+        self.evaluate_env = test_env
         self.env= env
         self.env_params = env_params
         self.episodes = n_episodes
@@ -52,15 +55,16 @@ class Agent:
         if not os.path.exists(self.path):   
             os.mkdir(self.path)
         self.screen = screen
-        self.buffer = Buffer(1_000_000, per=per ,her=her,reward_func=self.env.compute_reward,)
+        self.buffer = Buffer(1_000_000, per=per ,her=her,reward_func=self.evaluate_env.compute_reward,)
         self.her_size = her_size
         self.norm = Normalizer(self.env_params, self.gamma)
 
         self.tensorboard = ModifiedTensorBoard(log_dir = 'logs')
         self.aggregate_stats_every =aggregate_stats_every
         self.record_episodes = [int(eps *self.episodes) for eps in record_episode]
-        self.t = threading.Thread(target=self.LaunchTensorBoard, args=([]))
-        self.t.start()
+        if tensorboard:
+            self.t = threading.Thread(target=self.LaunchTensorBoard, args=([]))
+            self.t.start()
 
     def LaunchTensorBoard(self):
         os.system('tensorboard --logdir=' + 'logs'+ ' --host 0.0.0.0')
@@ -102,7 +106,7 @@ class Agent:
 
         q_target = r_batch + self.gamma * q_next
         q_target = q_target.detach()
-        q_prime = self.critic.forward(state, a_batch)
+        q_prqime = self.critic.forward(state, a_batch)
         critic_loss = (q_target - q_prime).pow(2).mean()
 
         action = self.actor.forward(state)
@@ -125,6 +129,55 @@ class Agent:
         if self.noise_eps > .2:
             self.noise_eps *= .995
         return actor_loss, critic_loss
+
+    def Explore(self):
+        succes_rate = []
+        ep_rewards = []
+        significant_moves = []
+        for episode in range(self.episodes):
+            state = env.reset()
+            state = self.norm.normalize_state(state)
+            self.tensorboard.step = episode
+            total_rewards = 0
+            significance = 0
+            for t in range(self.env_params['max_timesteps']): 
+                if self.screen:
+                    env.render()
+
+                action = self.Action(state)
+                nextstate, reward, done, info = env.step(action)
+
+                total_rewards += reward
+                if np.sum(nextstate['desired_goal'] - nextstate['achieved_goal']) == 0:
+                    succes_rate.append(True)
+
+                nextstate = self.norm.normalize_state(nextstate)
+                reward = self.norm.normalize_reward(reward)
+                self.buffer.append((state, action, reward, done, nextstate, info))
+
+                significance += abs(np.sum(state['observation'] - nextstate['observation']))
+                state = nextstate
+
+
+                if done:
+                    if episode in self.record_episodes:
+                        self.record(episode)
+                    succes_rate.append(False)
+                    ep_rewards.append(total_rewards)
+                    significant_moves.append(significance)
+                    print(f"Episode: {episode}of{self.episodes}, succes_rate:{np.sum(succes_rate)/len(succes_rate)}")
+                    if not episode % self.aggregate_stats_every:
+                        average_reward = sum(ep_rewards[-self.aggregate_stats_every:])/len(ep_rewards[-self.aggregate_stats_every:])
+                        min_reward = min(ep_rewards[-self.aggregate_stats_every:])
+                        max_reward = max(ep_rewards[-self.aggregate_stats_every:])
+                        succes = np.sum(succes_rate[-self.aggregate_stats_every:])/len(succes_rate[-self.aggregate_stats_every:])
+                        sig = sum(significant_moves[-self.aggregate_stats_every:])/len(significant_moves[-self.aggregate_stats_every:])
+                        self.tensorboard.update_stats(Succes_Rate=succes,reward_avg=average_reward, reward_min=min_reward, reward_max=max_reward, SignificantMove=sig)
+                    break
+            if not episode % 5 and episode != 0:  
+                print('Training Networks')       
+                self.Update(episode)
+
 
     def record(self, episode):
         try:
@@ -157,62 +210,6 @@ class Agent:
         for target_param, param in zip(network.parameters(), target.parameters()):
              target_param.data.copy_(self.tau * param.data + (1.0 - self.tau) * target_param.data)
 
-
-    def Explore(self):
-        succes_rate = []
-        ep_rewards = []
-        significant_moves = []
-        timeline = []
-        iterator = tqdm(range(self.episodes+1), unit='episode')
-        for episode in iterator:
-            start = time.time()
-            state = env.reset()
-            self.tensorboard.step = episode
-            total_rewards = 0
-            significance = 0
-            for t in range(self.env_params['max_timesteps']): 
-                if self.screen:
-                    env.render()
-
-                action = self.Action(state)
-                nextstate, reward, done, info = env.step(action)
-
-                total_rewards += reward
-                # if info['is_success']:
-                #     succes_rate.append(True)
-
-                # nextstate = self.norm.normalize_state(nextstate)
-                # reward = self.norm.normalize_reward(reward)
-                self.buffer.append((state, action, reward, done, nextstate, info))
-
-                significance += abs(np.sum(state - nextstate))
-                state = nextstate
-
-                if done:
-                    if episode in self.record_episodes:
-                        self.record(episode)
-                    # if not info['is_success']:
-                    #     succes_rate.append(False)
-                    ep_rewards.append(total_rewards)
-                    significant_moves.append(significance)
-                    end = time.time()
-                    timeline.append(end-start)
-                    iterator.set_postfix(average_reward = sum(ep_rewards)/len(ep_rewards), epsilon = self.noise_eps)
-                    if not episode % self.aggregate_stats_every:
-                        average_reward = sum(ep_rewards)/len(ep_rewards)
-                        min_reward = min(ep_rewards)
-                        max_reward = max(ep_rewards)
-                        sig = sum(significant_moves)/len(significant_moves)
-                        timing =sum(timeline)
-                        self.tensorboard.update_stats(reward_avg=average_reward, reward_min=min_reward, reward_max=max_reward, SignificantMove=sig, elapsed_time=timing)
-                        timeline.clear() , significant_moves.clear()
-
-                    break
-            if not episode % 100 and episode != 0:        
-                self.Update(episode)
-        self.SaveModels()
-
-
 def get_params(env):
     obs = env.reset()
 
@@ -225,11 +222,23 @@ def get_params(env):
     return params
 
 
-loadmodels = ('models/Actor.pt', 'models/Critic.pt')
+#loadmodels = ('models/Actor.pt', 'models/Critic.pt')
 #env = gym.make("HandManipulateBlock-v0")
-env = gym.make('MountainCarContinuous-v0')
+# pdb.set_trace()
+# env_make_fn = lambda : gym.make('BipedalWalker-v2')
+# envs = tuple(env_make_fn for _ in range(1))
+# multi_env = SubprocVecEnv(envs)
 
-env_param = get_params(env)
-agent = Agent(env,env_param, n_episodes=2_000,save_path=loadmodels ,noise_eps=3., batch_size=2560 ,her=False, per=False ,screen=False)
-agent.Explore()
-env.close()
+# env_param = get_params(env_make_fn())
+# agent = Agent(multi_env,env_param, n_episodes=2_000,save_path=None ,noise_eps=3., batch_size=2560 ,her=False, per=False ,screen=True)
+# agent.Explore()
+# env.close()
+
+if __name__ == '__main__':
+    env = gym.make('BipedalWalker-v2') 
+    env_make = tuple(lambda: gym.make('BipedalWalker-v2') for _ in range(os.cpu_count()))
+    envs = SubprocVecEnv(env_make)
+    env_param = get_params(env)
+    pdb.set_trace()
+    agent = Agent(env, envs,env_param, n_episodes=1,save_path=None ,noise_eps=3., batch_size=2560 ,her=False, per=False ,screen=True)
+    agent.Explore()

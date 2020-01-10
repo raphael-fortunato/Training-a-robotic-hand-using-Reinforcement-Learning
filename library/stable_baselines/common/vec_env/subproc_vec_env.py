@@ -4,9 +4,8 @@ from collections import OrderedDict
 import gym
 import numpy as np
 
-from stable_baselines.common.vec_env.base_vec_env import VecEnv, CloudpickleWrapper
-from stable_baselines.common.tile_images import tile_images
-
+from library.stable_baselines.common.vec_env.base_vec_env import VecEnv, CloudpickleWrapper
+from library.stable_baselines.common.tile_images import tile_images
 
 def _worker(remote, parent_remote, env_fn_wrapper):
     parent_remote.close()
