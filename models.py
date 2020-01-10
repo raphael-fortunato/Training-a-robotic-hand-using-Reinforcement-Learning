@@ -21,6 +21,7 @@ class Actor(nn.Module):
             x = x.cuda()
         else:
             x = torch.tensor(x)
+            
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
