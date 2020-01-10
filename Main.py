@@ -1,5 +1,5 @@
 import os
-import gym 
+import gym
 from gym.wrappers.monitoring.video_recorder import VideoRecorder
 import pdb
 import numpy as np
@@ -46,7 +46,7 @@ class Agent:
         # create path to save the model
         self.savepath = save_path
         self.path = modelpath
-        if not os.path.exists(self.path):   
+        if not os.path.exists(self.path):
             os.mkdir(self.path)
         self.screen = screen
         self.buffer = Buffer(1_000_000, per=per ,her=her,reward_func=self.env.compute_reward,)
@@ -88,7 +88,7 @@ class Agent:
             d_batch = d_batch.cuda()
             state = state.cuda()
             nextstate = nextstate.cuda()
-    
+
         with torch.no_grad():
             action_next = self.actor_target.forward(state)
             q_next = self.critic_target.forward(nextstate,action_next)
@@ -113,17 +113,17 @@ class Agent:
         self.critic_optim.zero_grad()
         critic_loss.backward()
         self.critic_optim.step()
-        
+
         self.SoftUpdateTarget(self.critic, self.critic_target)
         self.SoftUpdateTarget(self.actor, self.actor_target)
-    
+
         return actor_loss, critic_loss
 
     def record(self, episode):
         try:
             if not os.path.exists("videos"):
                 os.mkdir('videos')
-            recorder = VideoRecorder(self.env, path=f'videos\\episode-{episode}.mp4')
+            recorder = VideoRecorder(self.env, path=f'videos/episode-{episode}.mp4')
             done =False
             step = self.env.reset()
             step = self.norm.normalize_state(step)
@@ -138,8 +138,8 @@ class Agent:
             print(e)
 
     def SaveModels(self):
-        torch.save(self.actor.state_dict(), self.savepath+ "\\Actor.pt")
-        torch.save(self.critic.state_dict(), self.savepath+ "\\Critic.pt") 
+        torch.save(self.actor.state_dict(), self.savepath+ "/Actor.pt")
+        torch.save(self.critic.state_dict(), self.savepath+ "/Critic.pt")
 
     def LoadModels(self, actorpath, criticpath):
         actor = Actor(self.env_params, self.hidden_neurons)
@@ -166,7 +166,7 @@ class Agent:
             self.tensorboard.step = episode
             total_rewards = 0
             significance = 0
-            for t in range(self.env_params['max_timesteps']): 
+            for t in range(self.env_params['max_timesteps']):
                 if self.screen:
                     env.render()
 
@@ -185,8 +185,8 @@ class Agent:
                 state = nextstate
 
                 if done:
-                    # if episode in self.record_episodes:
-                    #     self.record(episode)
+                    if episode in self.record_episodes:
+                        self.record(episode)
                     if not info['is_success']:
                         succes_rate.append(False)
                     ep_rewards.append(total_rewards)
@@ -205,8 +205,7 @@ class Agent:
                         self.tensorboard.update_stats(Succes_Rate=succes,reward_avg=average_reward, reward_min=min_reward, reward_max=max_reward, SignificantMove=sig, elapsed_time=timing)
                         timeline.clear() , ep_rewards.clear(), significant_moves.clear()
                     break
-            if not episode % 10 and episode != 0:  
-                iterator.write(f'Training Networks - {episode}')       
+            if not episode % 10 and episode != 0:
                 self.Update(episode)
         self.SaveModels()
 
@@ -222,8 +221,7 @@ def get_params(env):
     return params
 
 
-loadmodels = ('models//Actor.pt', 'models//Critic.pt')
-#env = gym.make("FetchPush-v1")
+#loadmodels = ('models/Actor.pt', 'models/Critic.pt')
 env = gym.make("HandManipulateBlock-v0")
 env_param = get_params(env)
 agent = Agent(env,env_param, n_episodes=50, noise_eps=3., batch_size=256 ,screen=False)
