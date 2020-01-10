@@ -148,7 +148,7 @@ class Agent:
             for t in range(self.env_params['max_timesteps']): 
 
                 if self.screen:
-                    env.render()
+                    self.env.render()
 
                 action = self.Action(state)
                 
@@ -252,5 +252,5 @@ if __name__ == '__main__':
     env_make = tuple(lambda: gym.make('HandManipulateBlock-v0') for _ in range(os.cpu_count()))
     envs = SubprocVecEnv(env_make)
     env_param = get_params(env)
-    agent = Agent(env, envs,env_param, n_episodes=100,save_path=None ,noise_eps=3., batch_size=512, tensorboard=False ,her=False, per=False ,screen=False)
+    agent = Agent(env, envs,env_param, n_episodes=100,save_path=None ,noise_eps=3., batch_size=512, tensorboard=False ,her=True, per=True ,screen=True)
     agent.Explore()
