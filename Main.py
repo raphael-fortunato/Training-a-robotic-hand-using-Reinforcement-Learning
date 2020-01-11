@@ -7,7 +7,6 @@ import random
 from collections import deque
 from tqdm import tqdm
 import torch
-from torch.utils.tensorboard import SummaryWriter
 from normalizer import Normalizer
 from models import Actor, Critic
 from her import Buffer
@@ -16,19 +15,21 @@ from tensorboard import default
 from tensorboard import program
 import threading
 import time
+from copy import deepcopy
 from library.stable_baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+tf.compat.v1.logging.set_verbosity
 
 
 
 class Agent:
-    def __init__(self, test_env ,env, env_params, n_episodes,noise_eps,tau=.95, random_eps=.3,batch_size=256, her_size=.5, \
-                gamma=.99, per=True, her=True ,screen=False,modelpath='models' ,savepath=None ,agent_name='ddpg',save_path='models',tensorboard=True ,record_episode = [0 ,.1 , .15, .25, .5, .75, 1.] ,aggregate_stats_every=100):
+    def __init__(self, test_env ,env, env_params, n_episodes,noise_eps=.2,tensorboard=True,tau=.95, random_eps=.3,batch_size=256, her_size=.5, \
+                gamma=.99, per=True, her=True ,screen=False,modelpath='models' ,savepath=None ,agent_name='ddpg',save_path='models',\
+                    ensorboard=True ,record_episode = [0,.05 ,.1 , .15, .25,.35 ,.5, .75, 1.] ,aggregate_stats_every=100):
         self.evaluate_env = test_env
         self.env= env
         self.env_params = env_params
         self.episodes = n_episodes
-        self.hidden_neurons = 14
+        self.hidden_neurons = 256
         self.noise_eps = noise_eps
         self.random_eps = random_eps
         self.gamma = gamma
@@ -56,10 +57,9 @@ class Agent:
         if not os.path.exists(self.path):   
             os.mkdir(self.path)
         self.screen = screen
-        self.buffer = Buffer(1_000_000, per=per ,her=her,reward_func=self.evaluate_env.compute_reward,)
+        self.buffer = Buffer(1_000_000,num_threads =os.cpu_count() ,per=per ,her=her,reward_func=self.evaluate_env.compute_reward,)
         self.her_size = her_size
         self.norm = Normalizer(self.env_params, self.gamma)
-
         self.tensorboard = ModifiedTensorBoard(log_dir = 'logs')
         self.aggregate_stats_every =aggregate_stats_every
         self.record_episodes = [int(eps *self.episodes) for eps in record_episode]
@@ -89,7 +89,8 @@ class Agent:
         return action
 
     def Update(self, episode):
-        state, a_batch, r_batch, d_batch, nextstate = self.buffer.sampler(self.batch_size, self.her_size, .8)
+  
+        state, a_batch, r_batch, d_batch, nextstate = self.buffer.Sampler(self.batch_size, .8)
 
         a_batch = torch.tensor(a_batch,dtype=torch.double)
         r_batch = torch.tensor(r_batch,dtype=torch.double)
@@ -119,7 +120,7 @@ class Agent:
         actor_loss = -self.critic.forward(state, a_batch).mean()
         actor_loss += (action / self.env_params['max_action']).pow(2).mean()
 
-        #writting to tensorboard for visualisation
+
         self.tensorboard.update_stats(ActorLoss=actor_loss/self.batch_size, CriticLoss=critic_loss/self.batch_size, episode=episode)
 
         self.actor_optim.zero_grad()
@@ -137,10 +138,9 @@ class Agent:
         return actor_loss.item(), critic_loss.item()
 
     def Explore(self):
-
-        iterator = tqdm(range(self.episodes), unit='episode')
+        iterator = tqdm(range(self.episodes +1), unit='episode')
         for episode in iterator:
-
+            temp_buffer = []
             state = self.env.reset()
 
             state = self.norm.normalize_state(state)
@@ -157,15 +157,17 @@ class Agent:
                 nextstate = self.norm.normalize_state(nextstate)
                 reward = self.norm.normalize_reward(reward)
                 
-                for enum, (a,r,d,i) in enumerate(zip(action,reward,done,info)):
-                    self.buffer.append(({'achieved_goal':state['achieved_goal'][enum], 'desired_goal': state['desired_goal'][enum], 'observation': state['observation'][enum] },\
+                for id, (a,r,d,i) in enumerate(zip(action,reward,done,info)):
+                    experience = ({'achieved_goal':state['achieved_goal'][id], 'desired_goal': state['desired_goal'][id], 'observation': state['observation'][id] },\
                      a, r, d, \
-                     {'achieved_goal':nextstate['achieved_goal'][enum], 'desired_goal': nextstate['desired_goal'][enum], 'observation': nextstate['observation'][enum] }, \
-                     i))
-
+                     {'achieved_goal':nextstate['achieved_goal'][id], 'desired_goal': nextstate['desired_goal'][id], 'observation': nextstate['observation'][id] }, \
+                     i,id )
+                    temp_buffer.append(experience)
                 state = nextstate
-                
             else:
+                her_batch = self.buffer.HERFutureBatch(deepcopy(temp_buffer))
+                self.buffer.concat(deepcopy(temp_buffer))
+                self.buffer.concat(her_batch)
                 if episode > 5:
                     a_loss, c_loss = self.Update(episode)
                     iterator.set_postfix(Actor_loss = a_loss, Critic_loss=c_loss)
@@ -179,24 +181,23 @@ class Agent:
         total_reward = []
         episode_reward = 0
         succes_rate = []
-        for episode in range(10):
+        for episode in range(20):
             step = self.evaluate_env.reset()
+            step = self.norm.normalize_state(step)
             episode_reward = 0
             for t in range(self.env_params['max_timesteps']): 
                 action = self.Action(step, batch=False)
                 nextstate, reward, done, info = self.evaluate_env.step(action)
-               
+                nextstate = self.norm.normalize_state(nextstate)
+                reward = self.norm.normalize_reward(reward)
                 if info['is_success']:
                     succes_rate.append(True)
                 episode_reward += reward
-
                 if done:
                     if not info['is_success']:
                         succes_rate.append(False)
-
                     total_reward.append(episode_reward)
                     episode_reward = 0
-
         average_reward = sum(total_reward)/len(total_reward)
         min_reward = min(total_reward)
         max_reward = max(total_reward)
@@ -209,13 +210,17 @@ class Agent:
             if not os.path.exists("videos"):
                 os.mkdir('videos')
             recorder = VideoRecorder(self.evaluate_env, path=f'videos/episode-{episode}.mp4')
-            done =False
-            step = self.evaluate_env.reset()
-            while not done:
-                recorder.capture_frame()
-                action = self.Action(step, batch=False)
-                nextstate,reward,done,info = self.evaluate_env.step(action)
-                state = nextstate
+            for _ in range(5):
+                done =False
+                step = self.evaluate_env.reset()
+                step = self.norm.normalize_state(step)
+                while not done:
+                    recorder.capture_frame()
+                    action = self.Action(step, batch=False)
+                    nextstate,reward,done,info = self.evaluate_env.step(action)
+                    nextstate = self.norm.normalize_state(nextstate)
+                    reward = self.norm.normalize_reward(reward)
+                    state = nextstate
             recorder.close()
         except Exception as e:
             print(e)
@@ -252,5 +257,5 @@ if __name__ == '__main__':
     env_make = tuple(lambda: gym.make('HandManipulateBlock-v0') for _ in range(os.cpu_count()))
     envs = SubprocVecEnv(env_make)
     env_param = get_params(env)
-    agent = Agent(env, envs,env_param, n_episodes=100,save_path=None ,noise_eps=3., batch_size=512, tensorboard=False ,her=True, per=True ,screen=True)
+    agent = Agent(env, envs,env_param, n_episodes=100,save_path=None , batch_size=512, tensorboard=False ,her=True, per=True ,screen=False)
     agent.Explore()
