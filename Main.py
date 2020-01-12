@@ -17,6 +17,7 @@ import threading
 import time
 from copy import deepcopy
 from library.stable_baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
+import argparse
 
 
 
@@ -251,10 +252,20 @@ def get_params(env):
 
 
 if __name__ == '__main__':
-    #make arg parsing here
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--n-episodes', type=int, default=10_000, help='number of episodes')
+    parser.add_argument('--batch_size', type=int, default=1000, help='size of the batch to pass through the network')
+    parser.add_argument('--render', type=bool, default=False, help='whether or not to render the screen')
+    parser.add_argument('--her', type=bool, default=True, help='Hindsight experience replay')
+    parser.add_argument('--per', type=bool, default=True, help='Prioritized experience replay')
+    parser.add_argument('--tb', type=bool, default=True, help='tensorboard activated via code')
+    args = parser.parse_args()
+
+
     env = gym.make('HandManipulateBlock-v0') 
     env_make = tuple(lambda: gym.make('HandManipulateBlock-v0') for _ in range(os.cpu_count()))
     envs = SubprocVecEnv(env_make)
     env_param = get_params(env)
-    agent = Agent(env, envs,env_param, n_episodes=100,save_path=None , batch_size=512, tensorboard=False ,her=True, per=True ,screen=False)
+    agent = Agent(env, envs,env_param, n_episodes=args.n_episodes,save_path=None, \
+    batch_size=args.batch_size, tensorboard=args.tb ,her=args.her, per=args.per ,screen=args.render)
     agent.Explore()
