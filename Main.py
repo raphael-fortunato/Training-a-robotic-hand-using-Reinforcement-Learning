@@ -23,19 +23,22 @@ import argparse
 
 
 class Agent:
-    def __init__(self, test_env ,env, env_params, n_episodes,noise_eps=.2,tensorboard=True,tau=.95, random_eps=.3,batch_size=256, her_size=.5, \
-                gamma=.99, per=True, her=True ,screen=False,modelpath='models' ,savepath=None ,agent_name='ddpg',save_path='models',\
-                    ensorboard=True ,record_episode = [0,.05 ,.1 , .15, .25,.35 ,.5, .75, 1.] ,aggregate_stats_every=100):
+    def __init__(self, test_env ,env, env_params, n_episodes, tensorboard=True, noise_eps=.2, tau=.95, random_eps=.3,batch_size=256, \
+                gamma=.99, l2=1. ,per=True, her=True ,screen=False,modelpath='models' ,savepath=None, save_path='models',\
+                    tensorboard=True ,record_episode = [0,.05 ,.1 , .15, .25,.35 ,.5, .75, 1.] ,aggregate_stats_every=100):
         self.evaluate_env = test_env
         self.env= env
         self.env_params = env_params
+
         self.episodes = n_episodes
         self.hidden_neurons = 256
         self.noise_eps = noise_eps
         self.random_eps = random_eps
         self.gamma = gamma
         self.tau = tau
+        self.l2_norm = l2
         self.batch_size = batch_size
+
         # networks
         if savepath == None:
             self.actor = Actor(self.env_params, self.hidden_neurons).double()
@@ -45,6 +48,9 @@ class Agent:
         # target networks used to predict env actions with
         self.actor_target = Actor(self.env_params, self.hidden_neurons).double()
         self.critic_target = Critic(self.env_params, self.hidden_neurons).double()
+        self.actor_target.load_state_dict(self.actor.state_dict())
+        self.critic_target.load_state_dict(self.critic.state_dict())
+        
         if torch.cuda.is_available():
             self.actor.cuda()
             self.critic.cuda()
@@ -91,7 +97,6 @@ class Agent:
 
     def Update(self, episode):
         state, a_batch, r_batch, d_batch, nextstate = self.buffer.Sampler(self.batch_size, .8)
-
         a_batch = torch.tensor(a_batch,dtype=torch.double)
         r_batch = torch.tensor(r_batch,dtype=torch.double)
         d_batch = torch.tensor(d_batch,dtype=torch.double)
@@ -110,25 +115,23 @@ class Agent:
             action_next = self.actor_target.forward(state)
             q_next = self.critic_target.forward(nextstate,action_next)
             q_next = q_next.detach()
+            #clip q value
+            clip_value = 1 / (1- self.gamma)
+            q_next = torch.clamp(q_next, -clip_value, 0)
 
         q_target = r_batch + self.gamma * q_next
         q_target = q_target.detach()
         q_prime = self.critic.forward(state, a_batch)
-        critic_loss = (q_target - q_prime).pow(2).mean()
+        critic_loss = nn.MSELoss(q_target - q_prime)
 
         action = self.actor.forward(state)
         actor_loss = -self.critic.forward(state, a_batch).mean()
-        actor_loss += (action / self.env_params['max_action']).pow(2).mean()
-
+        actor_loss += self.l2_norm * (action / self.env_params['max_action']).pow(2).mean()
 
         self.tensorboard.update_stats(ActorLoss=actor_loss/self.batch_size, CriticLoss=critic_loss/self.batch_size, episode=episode)
 
         self.actor_optim.zero_grad()
         actor_loss.backward()
-        self.actor_optim.step()
-
-        self.critic_optim.zero_grad()
-        critic_loss.backward()
         self.critic_optim.step()
 
         self.SoftUpdateTarget(self.critic, self.critic_target)
