@@ -251,6 +251,7 @@ def get_params(env):
 
 
 if __name__ == '__main__':
+    #make arg parsing here
     env = gym.make('HandManipulateBlock-v0') 
     env_make = tuple(lambda: gym.make('HandManipulateBlock-v0') for _ in range(os.cpu_count()))
     envs = SubprocVecEnv(env_make)
