@@ -87,7 +87,6 @@ class Agent:
             else:
                 action = np.concatenate([action['observation'], action['desired_goal']])
             action = self.actor_target.forward(action).detach().cpu().numpy()
-        pdb.set_trace()
         return np.clip(action + (self.noise.noise() * training), -self.env_params['max_action'], self.env_params['max_action'])
 
     def Update(self, episode):
