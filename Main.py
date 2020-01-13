@@ -11,7 +11,7 @@ from normalizer import Normalizer
 from models import Actor, Critic
 from her import Buffer
 from CustomTensorBoard import ModifiedTensorBoard
-from OUnoise import OUnoise
+from OUnoise import OrnsteinUhlenbeckActionNoise
 from tensorboard import default
 from tensorboard import program
 import threading
@@ -31,7 +31,7 @@ class Agent:
         self.env_params = env_params
         self.episodes = n_episodes
         self.hidden_neurons = 256
-        #self.noise = OUnoise(self.env_params)
+        self.noise = OrnsteinUhlenbeckActionNoise(mu = np.zeros(env_params['action']), sigma=.3 * np.ones(env_params['action']),)
         self.noise_eps = noise_eps
         self.random_eps = random_eps
         self.gamma = gamma
@@ -80,15 +80,8 @@ class Agent:
             else:
                 action = np.concatenate([action['observation'], action['desired_goal']])
             action = self.actor_target.forward(action).detach().cpu().numpy()
-            action +=self.noise_eps * self.env_params['max_action'] * np.random.randn(*action.shape)
-            action = np.clip(action, -self.env_params['max_action'], self.env_params['max_action'])
-            # random actions...
-            random_actions = np.random.uniform(low=-self.env_params['max_action'], high=self.env_params['max_action'], \
-                                            size=self.env_params['action'])
-            # choose if use the random actions
-            # need to specify random.uniform
-            action += np.random.binomial(1, self.random_eps, 1)[0] * (random_actions - action)
-        #return np.clip(action + (self.epsilon + self.noise() * training), -self.env_params['max_action'], self.env_params['max_action'])
+        pdb.set_trace()
+        return np.clip(action + (self.noise.noise() * training), -self.env_params['max_action'], self.env_params['max_action'])
 
     def Update(self, episode):
         state, a_batch, r_batch, d_batch, nextstate = self.buffer.Sampler(self.batch_size, .8)
@@ -265,5 +258,5 @@ if __name__ == '__main__':
     env_make = tuple(lambda: gym.make('HandManipulateBlock-v0') for _ in range(os.cpu_count()))
     envs = SubprocVecEnv(env_make)
     env_param = get_params(env)
-    agent = Agent(env, envs,env_param, n_episodes=100,save_path=None , batch_size=512, tensorboard=False ,her=True, per=True ,screen=True)
+    agent = Agent(env, envs,env_param, n_episodes=100,save_path=None , batch_size=512, tensorboard=False ,her=True, per=True ,screen=False)
     agent.Explore()
