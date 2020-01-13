@@ -11,6 +11,7 @@ from normalizer import Normalizer
 from models import Actor, Critic
 from her import Buffer
 from CustomTensorBoard import ModifiedTensorBoard
+from OUnoise import OrnsteinUhlenbeckActionNoise
 from tensorboard import default
 from tensorboard import program
 import threading
@@ -32,6 +33,7 @@ class Agent:
 
         self.episodes = n_episodes
         self.hidden_neurons = 256
+        self.noise = OrnsteinUhlenbeckActionNoise(mu = np.zeros(env_params['action']), sigma=.3 * np.ones(env_params['action']),)
         self.noise_eps = noise_eps
         self.random_eps = random_eps
         self.gamma = gamma
@@ -78,22 +80,15 @@ class Agent:
         os.system('tensorboard --logdir=' + 'logs'+ ' --host 0.0.0.0')
 
 
-    def Action(self, test, batch=True):
+    def Action(self, action,t=0 ,batch=True, training=True):
         with torch.no_grad():
             if batch:
-                concat = np.concatenate([test['observation'], test['desired_goal']], axis=1)
+                action = np.concatenate([action['observation'], action['desired_goal']], axis=1)
             else:
-                concat = np.concatenate([test['observation'], test['desired_goal']])
-            action = self.actor_target.forward(concat).detach().cpu().numpy()
-            action +=self.noise_eps * self.env_params['max_action'] * np.random.randn(*action.shape)
-            action = np.clip(action, -self.env_params['max_action'], self.env_params['max_action'])
-            # random actions...
-            random_actions = np.random.uniform(low=-self.env_params['max_action'], high=self.env_params['max_action'], \
-                                            size=self.env_params['action'])
-            # choose if use the random actions
-            # need to specify random.uniform
-            action += np.random.binomial(1, self.random_eps, 1)[0] * (random_actions - action)
-        return action
+                action = np.concatenate([action['observation'], action['desired_goal']])
+            action = self.actor_target.forward(action).detach().cpu().numpy()
+        pdb.set_trace()
+        return np.clip(action + (self.noise.noise() * training), -self.env_params['max_action'], self.env_params['max_action'])
 
     def Update(self, episode):
         state, a_batch, r_batch, d_batch, nextstate = self.buffer.Sampler(self.batch_size, .8)
@@ -137,7 +132,14 @@ class Agent:
         self.SoftUpdateTarget(self.critic, self.critic_target)
         self.SoftUpdateTarget(self.actor, self.actor_target)
 
+        self.EpsilonDecay()
+
         return actor_loss.item(), critic_loss.item()
+
+
+
+    def EpsilonDecay(self):
+        self.epsilon -= self.epsilon_decay
 
 
     def Explore(self):
@@ -189,7 +191,7 @@ class Agent:
             step = self.norm.normalize_state(step)
             episode_reward = 0
             for t in range(self.env_params['max_timesteps']): 
-                action = self.Action(step, batch=False)
+                action = self.Action(step, batch=False, training=False)
                 nextstate, reward, done, info = self.evaluate_env.step(action)
                 nextstate = self.norm.normalize_state(nextstate)
                 reward = self.norm.normalize_reward(reward)
@@ -218,7 +220,7 @@ class Agent:
                 step = self.norm.normalize_state(step)
                 while not done:
                     recorder.capture_frame()
-                    action = self.Action(step, batch=False)
+                    action = self.Action(step, batch=False, training=False)
                     nextstate,reward,done,info = self.evaluate_env.step(action)
                     nextstate = self.norm.normalize_state(nextstate)
                     reward = self.norm.normalize_reward(reward)
