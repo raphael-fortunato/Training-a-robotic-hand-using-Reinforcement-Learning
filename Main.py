@@ -26,7 +26,7 @@ import argparse
 class Agent:
     def __init__(self, test_env ,env, env_params, n_episodes, tensorboard=True, noise_eps=.2, tau=.95, random_eps=.3,batch_size=256, \
                 gamma=.99, l2=1. ,per=True, her=True ,screen=False,modelpath='models' ,savepath=None, save_path='models',\
-                    tensorboard=True ,record_episode = [0,.05 ,.1 , .15, .25,.35 ,.5, .75, 1.] ,aggregate_stats_every=100):
+                record_episode = [0,.05 ,.1 , .15, .25,.35 ,.5, .75, 1.] ,aggregate_stats_every=100):
         self.evaluate_env = test_env
         self.env= env
         self.env_params = env_params
@@ -67,7 +67,6 @@ class Agent:
             os.mkdir(self.path)
         self.screen = screen
         self.buffer = Buffer(1_000_000,num_threads =os.cpu_count() ,per=per ,her=her,reward_func=self.evaluate_env.compute_reward,)
-        self.her_size = her_size
         self.norm = Normalizer(self.env_params, self.gamma)
         self.tensorboard = ModifiedTensorBoard(log_dir = f"logs")
         self.aggregate_stats_every =aggregate_stats_every
@@ -253,16 +252,22 @@ def get_params(env):
 	params['max_timesteps'] = env._max_episode_steps
 	return params
 
-
+def str2bool(v):
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--n-episodes', type=int, default=10_000, help='number of episodes')
     parser.add_argument('--batch_size', type=int, default=1000, help='size of the batch to pass through the network')
-    parser.add_argument('--render', type=bool, default=False, help='whether or not to render the screen')
-    parser.add_argument('--her', type=bool, default=True, help='Hindsight experience replay')
-    parser.add_argument('--per', type=bool, default=True, help='Prioritized experience replay')
-    parser.add_argument('--tb', type=bool, default=True, help='tensorboard activated via code')
+    parser.add_argument('--render', type=str2bool, default=False, help='whether or not to render the screen')
+    parser.add_argument('--her', type=str2bool, default=True, help='Hindsight experience replay')
+    parser.add_argument('--per', type=str2bool, default=True, help='Prioritized experience replay')
+    parser.add_argument('--tb', type=str2bool, default=True, help='tensorboard activated via code')
     args = parser.parse_args()
 
 
