@@ -260,16 +260,23 @@ def get_params(env):
 	params['max_timesteps'] = env._max_episode_steps
 	return params
 
+def str2bool(v):
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--n-episodes', type=int, default=10_000, help='number of episodes')
     parser.add_argument('--batch_size', type=int, default=1000, help='size of the batch to pass through the network')
-    parser.add_argument('--render', type=bool, default=False, help='whether or not to render the screen')
-    parser.add_argument('--her', type=bool, default=True, help='Hindsight experience replay')
-    parser.add_argument('--per', type=bool, default=True, help='Prioritized experience replay')
-    parser.add_argument('--tb', type=bool, default=True, help='tensorboard activated via code')
+    parser.add_argument('--render', type=str2bool, default=False, help='whether or not to render the screen')
+    parser.add_argument('--her', type=str2bool, default=True, help='Hindsight experience replay')
+    parser.add_argument('--per', type=str2bool, default=True, help='Prioritized experience replay')
+    parser.add_argument('--tb', type=str2bool, default=True, help='tensorboard activated via code')
     args = parser.parse_args()
 
 
