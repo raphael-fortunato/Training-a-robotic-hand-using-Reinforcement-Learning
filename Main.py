@@ -33,7 +33,6 @@ class Agent:
 
         self.episodes = n_episodes
         self.hidden_neurons = 256
-        self.noise = OrnsteinUhlenbeckActionNoise(mu = np.zeros(env_params['action']), sigma=.3 * np.ones(env_params['action']),)
         self.noise_eps = noise_eps
         self.random_eps = random_eps
         self.gamma = gamma
@@ -60,6 +59,7 @@ class Agent:
             self.critic.cuda()
             self.actor_target.cuda()
             self.critic_target.cuda()
+            self.actor_pertubated.cuda()
         self.actor_optim = torch.optim.Adam(self.actor.parameters(), lr=0.001)
         self.critic_optim = torch.optim.Adam(self.critic.parameters(), lr=0.001)
         # create path to save the model
@@ -82,19 +82,26 @@ class Agent:
 
 
 
-    def Action(self, state, param_noise):
+    def Action(self, state, param_noise, batch= True):
         with torch.no_grad():
+            if batch:
+                state = np.concatenate([state['observation'], state['desired_goal']], axis=1)
+            else:
+                state = np.concatenate([state['observation'], state['desired_goal']])
             if param_noise is not None:
-                self.actor_pertubated = self.actor_pertubated.load_state_dict(self.actor_target.state_dict())
+                self.actor_pertubated.load_state_dict(self.actor_target.state_dict())
                 params = self.actor_pertubated.state_dict()
                 for name in params:
                     if 'ln' in name:
                         pass
                     param = params[name]
-                    param += torch.randn(param.shape) * param_noise.current_stddev
-                return self.perturbated_actor.forward(state)
+                    if torch.cuda.is_available():
+                        param += torch.randn(param.shape, device='cuda') * param_noise.current_stddev
+                    else:
+                        param += torch.randn(param.shape) * param_noise.current_stddev
+                return self.actor_pertubated.forward(state).detach().cpu().numpy()
             else:
-                return self.actor.forward(state)
+                return self.actor.forward(state).detach().cpu().numpy()
 
 
     
@@ -197,7 +204,7 @@ class Agent:
             step = self.norm.normalize_state(step)
             episode_reward = 0
             for t in range(self.env_params['max_timesteps']): 
-                action = self.Action(step, param_noise=None)
+                action = self.Action(step,param_noise=None, batch=False)
                 nextstate, reward, done, info = self.evaluate_env.step(action)
                 nextstate = self.norm.normalize_state(nextstate)
                 reward = self.norm.normalize_reward(reward)
@@ -226,7 +233,7 @@ class Agent:
                 step = self.norm.normalize_state(step)
                 while not done:
                     recorder.capture_frame()
-                    action = self.Action(step, param_noise=None)
+                    action = self.Action(step, param_noise=None, batch=False)
                     nextstate,reward,done,info = self.evaluate_env.step(action)
                     nextstate = self.norm.normalize_state(nextstate)
                     reward = self.norm.normalize_reward(reward)
