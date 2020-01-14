@@ -11,7 +11,7 @@ from normalizer import Normalizer
 from models import Actor, Critic
 from her import Buffer
 from CustomTensorBoard import ModifiedTensorBoard
-from OUnoise import OrnsteinUhlenbeckActionNoise
+from OUnoise import OrnsteinUhlenbeckActionNoise, AdaptiveParamNoiseSpec
 from tensorboard import default
 from tensorboard import program
 import threading
@@ -24,9 +24,9 @@ import argparse
 
 
 class Agent:
-    def __init__(self, test_env ,env, env_params, n_episodes, tensorboard=True, noise_eps=.2, tau=.95, random_eps=.3,batch_size=256, \
+    def __init__(self, test_env ,env, env_params, n_episodes, tensorboard=True, noise=AdaptiveParamNoiseSpec() ,noise_eps=.2, tau=.95, random_eps=.3,batch_size=256, \
                 gamma=.99, l2=1. ,per=True, her=True ,screen=False,modelpath='models' ,savepath=None, save_path='models',\
-                    tensorboard=True ,record_episode = [0,.05 ,.1 , .15, .25,.35 ,.5, .75, 1.] ,aggregate_stats_every=100):
+                record_episode = [0,.05 ,.1 , .15, .25,.35 ,.5, .75, 1.] ,aggregate_stats_every=100):
         self.evaluate_env = test_env
         self.env= env
         self.env_params = env_params
@@ -40,6 +40,7 @@ class Agent:
         self.tau = tau
         self.l2_norm = l2
         self.batch_size = batch_size
+        self.param_noise = noise
 
         # networks
         if savepath == None:
@@ -50,6 +51,7 @@ class Agent:
         # target networks used to predict env actions with
         self.actor_target = Actor(self.env_params, self.hidden_neurons).double()
         self.critic_target = Critic(self.env_params, self.hidden_neurons).double()
+        self.actor_pertubated = Actor(self.env_params, self.hidden_neurons).double()
         self.actor_target.load_state_dict(self.actor.state_dict())
         self.critic_target.load_state_dict(self.critic.state_dict())
         
@@ -67,7 +69,6 @@ class Agent:
             os.mkdir(self.path)
         self.screen = screen
         self.buffer = Buffer(1_000_000,num_threads =os.cpu_count() ,per=per ,her=her,reward_func=self.evaluate_env.compute_reward,)
-        self.her_size = her_size
         self.norm = Normalizer(self.env_params, self.gamma)
         self.tensorboard = ModifiedTensorBoard(log_dir = f"logs")
         self.aggregate_stats_every =aggregate_stats_every
@@ -80,14 +81,23 @@ class Agent:
         os.system('tensorboard --logdir=' + 'logs'+ ' --host 0.0.0.0')
 
 
-    def Action(self, action,t=0 ,batch=True, training=True):
+
+    def Action(self, state, param_noise):
         with torch.no_grad():
-            if batch:
-                action = np.concatenate([action['observation'], action['desired_goal']], axis=1)
+            if param_noise is not None:
+                self.actor_pertubated = self.actor_pertubated.load_state_dict(self.actor_target.state_dict())
+                params = self.actor_pertubated.state_dict()
+                for name in params:
+                    if 'ln' in name:
+                        pass
+                    param = params[name]
+                    param += torch.randn(param.shape) * param_noise.current_stddev
+                return self.perturbated_actor.forward(state)
             else:
-                action = np.concatenate([action['observation'], action['desired_goal']])
-            action = self.actor_target.forward(action).detach().cpu().numpy()
-        return np.clip(action + (self.noise.noise() * training), -self.env_params['max_action'], self.env_params['max_action'])
+                return self.actor.forward(state)
+
+
+    
 
     def Update(self, episode):
         state, a_batch, r_batch, d_batch, nextstate = self.buffer.Sampler(self.batch_size, .8)
@@ -109,9 +119,6 @@ class Agent:
             action_next = self.actor_target.forward(state)
             q_next = self.critic_target.forward(nextstate,action_next)
             q_next = q_next.detach()
-            #clip q value
-            clip_value = 1 / (1- self.gamma)
-            q_next = torch.clamp(q_next, -clip_value, 0)
 
         q_target = r_batch + self.gamma * q_next
         q_target = q_target.detach()
@@ -154,7 +161,7 @@ class Agent:
                 if self.screen:
                     self.env.render()
 
-                action = self.Action(state)
+                action = self.Action(state, param_noise=self.param_noise)
                 
                 nextstate, reward, done, info = self.env.step(action)
 
@@ -190,7 +197,7 @@ class Agent:
             step = self.norm.normalize_state(step)
             episode_reward = 0
             for t in range(self.env_params['max_timesteps']): 
-                action = self.Action(step, batch=False, training=False)
+                action = self.Action(step, param_noise=None)
                 nextstate, reward, done, info = self.evaluate_env.step(action)
                 nextstate = self.norm.normalize_state(nextstate)
                 reward = self.norm.normalize_reward(reward)
@@ -219,7 +226,7 @@ class Agent:
                 step = self.norm.normalize_state(step)
                 while not done:
                     recorder.capture_frame()
-                    action = self.Action(step, batch=False, training=False)
+                    action = self.Action(step, param_noise=None)
                     nextstate,reward,done,info = self.evaluate_env.step(action)
                     nextstate = self.norm.normalize_state(nextstate)
                     reward = self.norm.normalize_reward(reward)
