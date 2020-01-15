@@ -7,6 +7,7 @@ import random
 from collections import deque
 from tqdm import tqdm
 import torch
+import torch.nn.functional as F
 from normalizer import Normalizer
 from models import Actor, Critic
 from her import Buffer
@@ -24,7 +25,7 @@ import argparse
 
 
 class Agent:
-    def __init__(self, test_env ,env, env_params, n_episodes,n_threads ,tensorboard=True, random_eps=.3 ,noise_eps=.2, tau=.05, batch_size=256, \
+    def __init__(self, test_env ,env, env_params, n_episodes,n_threads ,tensorboard=True, random_eps=.3 ,noise_eps=.2, tau=0.05, batch_size=256, \
                 gamma=.99, l2=1. ,per=True, her=True ,screen=False,modelpath='models' ,savepath=None, save_path='models',\
                 record_episode = [0,.05 ,.1 , .15, .25,.35 ,.5, .75, 1.] ,aggregate_stats_every=100):
         self.evaluate_env = test_env
@@ -138,12 +139,12 @@ class Agent:
         with torch.no_grad():
             action_next = self.actor_target.forward(nextstate)
             q_next = self.critic_target.forward(nextstate,action_next)
-            q_next = q_next.detach()
+            q_next = q_next.detach().squeeze()
             q_target = r_batch + self.gamma * q_next * d_batch
             q_target = q_target.detach()
 
         q_prime = self.critic.forward(state, a_batch)
-        critic_loss = (q_target - q_prime).pow(2).mean()
+        critic_loss = F.mse_loss(q_target.squeeze() - q_prime.squeeze())
 
         action = self.actor.forward(state)
         actor_loss = -self.critic.forward(state, action).mean()
@@ -264,7 +265,7 @@ class Agent:
         return actor, critic
 
     def SoftUpdateTarget(self, network, target):
-        for target_param, param in zip(network.parameters(), target.parameters()):
+        for param, target_param in zip(network.parameters(), target.parameters()):
              target_param.data.copy_(self.tau * param.data + (1.0 - self.tau) * target_param.data)
 
 def get_params(env):
