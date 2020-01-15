@@ -24,7 +24,7 @@ import argparse
 
 
 class Agent:
-    def __init__(self, test_env ,env, env_params, n_episodes,n_threads ,tensorboard=True, random_eps=.3 ,noise_eps=.2, tau=.95, batch_size=256, \
+    def __init__(self, test_env ,env, env_params, n_episodes,n_threads ,tensorboard=True, random_eps=.3 ,noise_eps=.2, tau=.05, batch_size=256, \
                 gamma=.99, l2=1. ,per=True, her=True ,screen=False,modelpath='models' ,savepath=None, save_path='models',\
                 record_episode = [0,.05 ,.1 , .15, .25,.35 ,.5, .75, 1.] ,aggregate_stats_every=100):
         self.evaluate_env = test_env
@@ -153,9 +153,11 @@ class Agent:
 
         self.actor_optim.zero_grad()
         actor_loss.backward()
+        self.actor_optim.step()
 
+        self.critic_optim.zero_grad()
+        critic_loss.backward()
         self.critic_optim.step()
-        self.critic_loss.backward()
 
         self.SoftUpdateTarget(self.critic, self.critic_target)
         self.SoftUpdateTarget(self.actor, self.actor_target)
