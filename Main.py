@@ -106,8 +106,8 @@ class Agent:
                 self.param_noise.adapt(Distance(self.old_action, action))
                 self.old_action = action
                 # add the gaussian
-                action += self.noise_eps * self.env_params['max_action'] * np.random.randn(*action.shape)
-                action = np.clip(action, -self.env_params['max_action'], self.env_params['max_action'])
+                # action += self.noise_eps * self.env_params['max_action'] * np.random.randn(*action.shape)
+                # action = np.clip(action, -self.env_params['max_action'], self.env_params['max_action'])
                 # random actions...
                 random_actions = np.random.uniform(low=-self.env_params['max_action'], high=self.env_params['max_action'], \
                                                     size=self.env_params['action'])
@@ -193,18 +193,18 @@ class Agent:
                      i,id )
                     temp_buffer.append(experience)
                 state = nextstate
-            else:
-                her_batch = self.buffer.HERFutureBatch(deepcopy(temp_buffer))
-                self.buffer.concat(deepcopy(temp_buffer))
-                self.buffer.concat(her_batch)
-                if episode > 5:
-                    a_loss, c_loss = self.Update(episode)
-                    iterator.set_postfix(Actor_loss = a_loss, Critic_loss=c_loss)
-                if not episode % self.aggregate_stats_every:
-                    self.Evaluate()
-                if episode in self.record_episodes:
-                    self.record(episode)
-                    
+                if np.array(done).any() or t == self.env_params['max_timesteps'] -2:
+                    her_batch = self.buffer.HERFutureBatch(deepcopy(temp_buffer))
+                    self.buffer.concat(deepcopy(temp_buffer))
+                    self.buffer.concat(her_batch)
+                    if episode > 5:
+                        a_loss, c_loss = self.Update(episode)
+                        iterator.set_postfix(Actor_loss = a_loss, Critic_loss=c_loss)
+                    if not episode % self.aggregate_stats_every:
+                        self.Evaluate()
+                    if episode in self.record_episodes:
+                        self.record(episode)
+                    break
 
     def Evaluate(self):
         total_reward = []
@@ -222,7 +222,7 @@ class Agent:
                 if info['is_success']:
                     succes_rate.append(True)
                 episode_reward += reward
-                if done:
+                if np.array(done).any() or t == self.env_params['max_timesteps'] -2:
                     if not info['is_success']:
                         succes_rate.append(False)
                     total_reward.append(episode_reward)
