@@ -121,39 +121,39 @@ class Agent:
 
     def Update(self, episode):
         state, a_batch, r_batch, d_batch, nextstate = self.buffer.Sampler(self.batch_size, .8)
+ 
         a_batch = torch.tensor(a_batch,dtype=torch.double)
         r_batch = torch.tensor(r_batch,dtype=torch.double)
-        d_batch = torch.tensor(d_batch,dtype=torch.double)
         state = torch.tensor(state, dtype=torch.double)
         nextstate = torch.tensor(nextstate, dtype=torch.double)
 
         if torch.cuda.is_available():
             a_batch = a_batch.cuda()
             r_batch = r_batch.cuda()
-            d_batch = d_batch.cuda()
             state = state.cuda()
             nextstate = nextstate.cuda()
 
         with torch.no_grad():
-            
             action_next = self.actor_target.forward(state)
             q_next = self.critic_target.forward(nextstate,action_next)
             q_next = q_next.detach()
+            q_target = r_batch + self.gamma * q_next
+            q_target = q_target.detach()
 
-        q_target = r_batch + self.gamma * q_next
-        q_target = q_target.detach()
         q_prime = self.critic.forward(state, a_batch)
         critic_loss = (q_target - q_prime).pow(2).mean()
 
         action = self.actor.forward(state)
-        actor_loss = -self.critic.forward(state, a_batch).mean()
+        actor_loss = -self.critic.forward(state, action).mean()
         actor_loss += self.l2_norm * (action / self.env_params['max_action']).pow(2).mean()
 
-        self.tensorboard.update_stats(ActorLoss=actor_loss/self.batch_size, CriticLoss=critic_loss/self.batch_size, episode=episode)
+        self.tensorboard.update_stats(ActorLoss=actor_loss.item()/self.batch_size, CriticLoss=critic_loss.item()/self.batch_size, episode=episode)
 
         self.actor_optim.zero_grad()
         actor_loss.backward()
+
         self.critic_optim.step()
+        self.critic_loss.backward()
 
         self.SoftUpdateTarget(self.critic, self.critic_target)
         self.SoftUpdateTarget(self.actor, self.actor_target)
