@@ -125,19 +125,21 @@ class Agent:
         a_batch = torch.tensor(a_batch,dtype=torch.double)
         r_batch = torch.tensor(r_batch,dtype=torch.double)
         state = torch.tensor(state, dtype=torch.double)
+        d_batch  = torch.tensor(d_batch, dtype=torch.double)
         nextstate = torch.tensor(nextstate, dtype=torch.double)
 
         if torch.cuda.is_available():
             a_batch = a_batch.cuda()
             r_batch = r_batch.cuda()
+            d_batch = d_batch.cuda()
             state = state.cuda()
             nextstate = nextstate.cuda()
 
         with torch.no_grad():
-            action_next = self.actor_target.forward(state)
+            action_next = self.actor_target.forward(nextstate)
             q_next = self.critic_target.forward(nextstate,action_next)
             q_next = q_next.detach()
-            q_target = r_batch + self.gamma * q_next
+            q_target = r_batch + self.gamma * q_next * d_batch
             q_target = q_target.detach()
 
         q_prime = self.critic.forward(state, a_batch)
