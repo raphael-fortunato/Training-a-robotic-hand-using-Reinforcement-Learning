@@ -78,3 +78,10 @@ class AdaptiveParamNoiseSpec(object):
     def __repr__(self):
         fmt = 'AdaptiveParamNoiseSpec(initial_stddev={}, desired_action_stddev={}, adaptation_coefficient={})'
         return fmt.format(self.initial_stddev, self.desired_action_stddev, self.adaptation_coefficient)
+
+
+def Distance(action1, action2):
+    diff = action1-action2
+    mean_diff = np.mean(np.square(diff), axis=0)
+    dist = np.sqrt(np.mean(mean_diff))
+    return dist
