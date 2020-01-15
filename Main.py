@@ -11,7 +11,7 @@ from normalizer import Normalizer
 from models import Actor, Critic
 from her import Buffer
 from CustomTensorBoard import ModifiedTensorBoard
-from OUnoise import OrnsteinUhlenbeckActionNoise, AdaptiveParamNoiseSpec
+from OUnoise import OrnsteinUhlenbeckActionNoise, AdaptiveParamNoiseSpec, Distance
 from tensorboard import default
 from tensorboard import program
 import threading
@@ -24,7 +24,7 @@ import argparse
 
 
 class Agent:
-    def __init__(self, test_env ,env, env_params, n_episodes, tensorboard=True, noise=AdaptiveParamNoiseSpec() ,noise_eps=.2, tau=.95, random_eps=.3,batch_size=256, \
+    def __init__(self, test_env ,env, env_params, n_episodes,n_threads ,tensorboard=True, random_eps=.3 ,noise_eps=.2, tau=.95, batch_size=256, \
                 gamma=.99, l2=1. ,per=True, her=True ,screen=False,modelpath='models' ,savepath=None, save_path='models',\
                 record_episode = [0,.05 ,.1 , .15, .25,.35 ,.5, .75, 1.] ,aggregate_stats_every=100):
         self.evaluate_env = test_env
@@ -35,11 +35,13 @@ class Agent:
         self.hidden_neurons = 256
         self.noise_eps = noise_eps
         self.random_eps = random_eps
+        self.random_eps = random_eps
         self.gamma = gamma
         self.tau = tau
         self.l2_norm = l2
         self.batch_size = batch_size
-        self.param_noise = noise
+        self.param_noise = AdaptiveParamNoiseSpec()
+        self.old_action = np.zeros((n_threads, self.env_params['action']))
 
         # networks
         if savepath == None:
@@ -68,7 +70,7 @@ class Agent:
         if not os.path.exists(self.path):
             os.mkdir(self.path)
         self.screen = screen
-        self.buffer = Buffer(1_000_000,num_threads =os.cpu_count() ,per=per ,her=her,reward_func=self.evaluate_env.compute_reward,)
+        self.buffer = Buffer(1_000_000,num_threads =n_threads ,per=per ,her=her,reward_func=self.evaluate_env.compute_reward,)
         self.norm = Normalizer(self.env_params, self.gamma)
         self.tensorboard = ModifiedTensorBoard(log_dir = f"logs")
         self.aggregate_stats_every =aggregate_stats_every
@@ -99,7 +101,18 @@ class Agent:
                         param += torch.randn(param.shape, device='cuda') * param_noise.current_stddev
                     else:
                         param += torch.randn(param.shape) * param_noise.current_stddev
-                return self.actor_pertubated.forward(state).detach().cpu().numpy()
+                action = self.actor_pertubated.forward(state).detach().cpu().numpy()
+                self.param_noise.adapt(Distance(self.old_action, action))
+                self.old_action = action
+                # add the gaussian
+                action += self.noise_eps * self.env_params['max_action'] * np.random.randn(*action.shape)
+                action = np.clip(action, -self.env_params['max_action'], self.env_params['max_action'])
+                # random actions...
+                random_actions = np.random.uniform(low=-self.env_params['max_action'], high=self.env_params['max_action'], \
+                                                    size=self.env_params['action'])
+                # choose if use the random actions
+                action += np.random.binomial(1, self.random_eps, 1)[0] * (random_actions - action)
+                return action
             else:
                 return self.actor.forward(state).detach().cpu().numpy()
 
@@ -130,7 +143,7 @@ class Agent:
         q_target = r_batch + self.gamma * q_next
         q_target = q_target.detach()
         q_prime = self.critic.forward(state, a_batch)
-        critic_loss = nn.MSELoss(q_target - q_prime)
+        critic_loss = (q_target - q_prime).pow(2).mean()
 
         action = self.actor.forward(state)
         actor_loss = -self.critic.forward(state, a_batch).mean()
@@ -145,14 +158,7 @@ class Agent:
         self.SoftUpdateTarget(self.critic, self.critic_target)
         self.SoftUpdateTarget(self.actor, self.actor_target)
 
-        self.EpsilonDecay()
-
         return actor_loss.item(), critic_loss.item()
-
-
-
-    def EpsilonDecay(self):
-        self.epsilon -= self.epsilon_decay
 
 
     def Explore(self):
@@ -278,7 +284,7 @@ def str2bool(v):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--n-episodes', type=int, default=10_000, help='number of episodes')
+    parser.add_argument('--n-episodes', type=int, default=10000, help='number of episodes')
     parser.add_argument('--batch_size', type=int, default=1000, help='size of the batch to pass through the network')
     parser.add_argument('--render', type=str2bool, default=False, help='whether or not to render the screen')
     parser.add_argument('--her', type=str2bool, default=True, help='Hindsight experience replay')
@@ -286,11 +292,11 @@ if __name__ == '__main__':
     parser.add_argument('--tb', type=str2bool, default=True, help='tensorboard activated via code')
     args = parser.parse_args()
 
-
+    num_threads = os.cpu_count() -2
     env = gym.make('HandManipulateBlock-v0') 
-    env_make = tuple(lambda: gym.make('HandManipulateBlock-v0') for _ in range(os.cpu_count()))
+    env_make = tuple(lambda: gym.make('HandManipulateBlock-v0') for _ in range(num_threads))
     envs = SubprocVecEnv(env_make)
     env_param = get_params(env)
-    agent = Agent(env, envs,env_param, n_episodes=args.n_episodes,save_path=None, \
+    agent = Agent(env, envs,env_param,n_episodes=args.n_episodes, n_threads=num_threads, save_path=None, \
     batch_size=args.batch_size, tensorboard=args.tb ,her=args.her, per=args.per ,screen=args.render)
     agent.Explore()
