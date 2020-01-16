@@ -122,13 +122,11 @@ class Agent:
         a_batch = torch.tensor(a_batch,dtype=torch.double)
         r_batch = torch.tensor(r_batch,dtype=torch.double)
         state = torch.tensor(state, dtype=torch.double)
-        d_batch  = torch.tensor(d_batch, dtype=torch.double)
         nextstate = torch.tensor(nextstate, dtype=torch.double)
 
         if torch.cuda.is_available():
             a_batch = a_batch.cuda()
             r_batch = r_batch.cuda()
-            d_batch = d_batch.cuda()
             state = state.cuda()
             nextstate = nextstate.cuda()
 
@@ -136,13 +134,14 @@ class Agent:
             action_next = self.actor_target.forward(nextstate)
             q_next = self.critic_target.forward(nextstate,action_next)
             q_next = q_next.detach().squeeze()
-            q_target = r_batch + self.gamma * q_next *(1 - d_batch ) 
+            q_target = r_batch + self.gamma * q_next
             q_target = q_target.detach()
 
         q_prime = self.critic.forward(state, a_batch)
         critic_loss = F.mse_loss(q_target.squeeze() , q_prime.squeeze())
 
         action = self.actor.forward(state)
+        pdb.set_trace()
         actor_loss = -self.critic.forward(state, action).mean()
         actor_loss += self.l2_norm * (action / self.env_params['max_action']).pow(2).mean()
 
@@ -200,6 +199,8 @@ class Agent:
                         self.Evaluate()
                     if episode in self.record_episodes:
                         self.record(episode)
+                    if episode % 10_000 or episode == self.env_params['max_timesteps'] -2:
+                        self.SaveModels(episode)
                     break
 
     def Evaluate(self):
@@ -249,9 +250,9 @@ class Agent:
         except Exception as e:
             print(e)
 
-    def SaveModels(self):
-        torch.save(self.actor.state_dict(), self.savepath+ "/Actor.pt")
-        torch.save(self.critic.state_dict(), self.savepath+ "/Critic.pt")
+    def SaveModels(self, ep):
+        torch.save(self.actor.state_dict(), self.path+ f"/Actor-{ep}.pt")
+        torch.save(self.critic.state_dict(), self.path+ f"/Critic-{ep}.pt")
 
     def LoadModels(self, actorpath, criticpath):
         actor = Actor(self.env_params, self.hidden_neurons)
