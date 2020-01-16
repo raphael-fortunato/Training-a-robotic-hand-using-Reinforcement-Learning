@@ -113,55 +113,57 @@ class Agent:
 
     
 
-    def Update(self, episode):
-        state, a_batch, r_batch, d_batch, nextstate = self.buffer.Sampler(self.batch_size, .8)
- 
-        a_batch = torch.tensor(a_batch,dtype=torch.double)
-        r_batch = torch.tensor(r_batch,dtype=torch.double)
-        d_batch = torch.tensor(d_batch,dtype=torch.double)
-        state = torch.tensor(state, dtype=torch.double)
-        nextstate = torch.tensor(nextstate, dtype=torch.double)
-        d_batch = 1 - d_batch
+    def Update(self, iteration):
+        c_loss = []
+        a_loss = []
+        for i in range(iteration):
+            state, a_batch, r_batch, d_batch, nextstate = self.buffer.Sampler(self.batch_size, .8)
+            a_batch = torch.tensor(a_batch,dtype=torch.double)
+            r_batch = torch.tensor(r_batch,dtype=torch.double)
+            d_batch = torch.tensor(d_batch,dtype=torch.double)
+            state = torch.tensor(state, dtype=torch.double)
+            nextstate = torch.tensor(nextstate, dtype=torch.double)
+            d_batch = 1 - d_batch
 
-        if torch.cuda.is_available():
-            a_batch = a_batch.cuda()
-            r_batch = r_batch.cuda()
-            d_batch = d_batch.cuda()
-            state = state.cuda()
-            nextstate = nextstate.cuda()
+            if torch.cuda.is_available():
+                a_batch = a_batch.cuda()
+                r_batch = r_batch.cuda()
+                d_batch = d_batch.cuda()
+                state = state.cuda()
+                nextstate = nextstate.cuda()
 
-        with torch.no_grad():
-            action_next = self.actor_target.forward(nextstate)
-            q_next = self.critic_target.forward(nextstate,action_next)
-            q_next = q_next.detach().squeeze()
-            q_target = r_batch + (self.gamma * q_next *d_batch)
-            q_target = q_target.detach()
+            with torch.no_grad():
+                action_next = self.actor_target.forward(nextstate)
+                q_next = self.critic_target.forward(nextstate,action_next)
+                q_next = q_next.detach().squeeze()
+                q_target = r_batch + (self.gamma * q_next *d_batch)
+                q_target = q_target.detach()
 
-        q_prime = self.critic.forward(state, a_batch)
-        critic_loss = F.mse_loss(q_target.squeeze() , q_prime.squeeze())
+            q_prime = self.critic.forward(state, a_batch)
+            critic_loss = F.mse_loss(q_target.squeeze() , q_prime.squeeze())
 
-        action = self.actor.forward(state)
-        pdb.set_trace()
-        actor_loss = -self.critic.forward(state, action).mean()
-        actor_loss += self.l2_norm * (action / self.env_params['max_action']).pow(2).mean()
+            action = self.actor.forward(state)
+            actor_loss = -self.critic.forward(state, action).mean()
+            actor_loss += self.l2_norm * (action / self.env_params['max_action']).pow(2).mean()
 
-        self.tensorboard.update_stats(ActorLoss=actor_loss.item()/self.batch_size, CriticLoss=critic_loss.item()/self.batch_size, episode=episode)
+            self.actor_optim.zero_grad()
+            actor_loss.backward()
+            self.actor_optim.step()
 
-        self.actor_optim.zero_grad()
-        actor_loss.backward()
-        self.actor_optim.step()
+            self.critic_optim.zero_grad()
+            critic_loss.backward()
+            self.critic_optim.step()
 
-        self.critic_optim.zero_grad()
-        critic_loss.backward()
-        self.critic_optim.step()
+            a_loss.append(actor_loss.item()/ self.batch_size)
+            c_loss.append(critic_loss.item()/ self.batch_size)
 
         self.SoftUpdateTarget(self.critic, self.critic_target)
         self.SoftUpdateTarget(self.actor, self.actor_target)
+        
+        return np.sum(a_loss)/ len(a_loss), np.sum(c_loss) / len(c_loss)
 
-        return actor_loss.item(), critic_loss.item()
 
-
-    def Explore(self):
+    def Explore(self, iteration):
         iterator = tqdm(range(self.episodes +1), unit='episode')
         for episode in iterator:
             temp_buffer = []
@@ -192,7 +194,8 @@ class Agent:
                     self.buffer.concat(deepcopy(temp_buffer))
                     self.buffer.concat(her_batch)
                     if episode > 5:
-                        a_loss, c_loss = self.Update(episode)
+                        a_loss, c_loss = self.Update(iteration)
+                        self.tensorboard.update_stats(ActorLoss=a_loss/self.batch_size, CriticLoss=c_loss)
                         iterator.set_postfix(Actor_loss = a_loss, Critic_loss=c_loss)
                     if not episode % self.aggregate_stats_every:
                         self.Evaluate()
@@ -292,7 +295,7 @@ def str2bool(v):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--n-episodes', type=int, default=10000, help='number of episodes')
-    parser.add_argument('--batch_size', type=int, default=1000, help='size of the batch to pass through the network')
+    parser.add_argument('--batch_size', type=int, default=512, help='size of the batch to pass through the network')
     parser.add_argument('--render', type=str2bool, default=False, help='whether or not to render the screen')
     parser.add_argument('--her', type=str2bool, default=True, help='Hindsight experience replay')
     parser.add_argument('--per', type=str2bool, default=True, help='Prioritized experience replay')
@@ -300,10 +303,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     num_threads = os.cpu_count() -2
+    iteration = num_threads
     env = gym.make('HandManipulateBlock-v0') 
     env_make = tuple(lambda: gym.make('HandManipulateBlock-v0') for _ in range(num_threads))
     envs = SubprocVecEnv(env_make)
     env_param = get_params(env)
     agent = Agent(env, envs,env_param,n_episodes=args.n_episodes, n_threads=num_threads, save_path=None, \
     batch_size=args.batch_size, tensorboard=args.tb ,her=args.her, per=args.per ,screen=args.render)
-    agent.Explore()
+    agent.Explore(iteration)
