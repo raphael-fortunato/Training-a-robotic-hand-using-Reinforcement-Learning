@@ -36,14 +36,12 @@ class Agent:
         self.hidden_neurons = 256
         self.noise_eps = noise_eps
         self.random_eps = random_eps
-        self.random_eps = random_eps
         self.gamma = gamma
         self.tau = tau
         self.l2_norm = l2
         self.batch_size = batch_size
         self.param_noise = AdaptiveParamNoiseSpec()
         self.noise = OrnsteinUhlenbeckActionNoise(np.zeros((n_threads, self.env_params['action'])))
-        self.old_action = np.zeros((n_threads, self.env_params['action']))
 
         # networks
         if savepath == None:
@@ -104,8 +102,7 @@ class Agent:
                     else:
                         param += torch.randn(param.shape) * param_noise.current_stddev
                 action = self.actor_pertubated.forward(state).detach().cpu().numpy()
-                self.param_noise.adapt(Distance(self.old_action, action))
-                self.old_action = action
+                self.param_noise.adapt(Distance(self.actor_target.forward(state).detach().cpu().numpy(), action))
                 # add the OUnoise
                 action +=  self.noise() * self.env_params['max_action'] * np.random.randn(*action.shape)
                 action = np.clip(action, -self.env_params['max_action'], self.env_params['max_action'])
@@ -121,12 +118,15 @@ class Agent:
  
         a_batch = torch.tensor(a_batch,dtype=torch.double)
         r_batch = torch.tensor(r_batch,dtype=torch.double)
+        d_batch = torch.tensor(d_batch,dtype=torch.double)
         state = torch.tensor(state, dtype=torch.double)
         nextstate = torch.tensor(nextstate, dtype=torch.double)
+        d_batch = 1 - d_batch
 
         if torch.cuda.is_available():
             a_batch = a_batch.cuda()
             r_batch = r_batch.cuda()
+            d_batch = d_batch.cuda()
             state = state.cuda()
             nextstate = nextstate.cuda()
 
@@ -134,7 +134,7 @@ class Agent:
             action_next = self.actor_target.forward(nextstate)
             q_next = self.critic_target.forward(nextstate,action_next)
             q_next = q_next.detach().squeeze()
-            q_target = r_batch + self.gamma * q_next
+            q_target = r_batch + (self.gamma * q_next *d_batch)
             q_target = q_target.detach()
 
         q_prime = self.critic.forward(state, a_batch)
@@ -175,7 +175,6 @@ class Agent:
                     self.env.render()
 
                 action = self.Action(state, param_noise=self.param_noise)
-                
                 nextstate, reward, done, info = self.env.step(action)
 
                 nextstate = self.norm.normalize_state(nextstate)
@@ -188,7 +187,7 @@ class Agent:
                      i,id )
                     temp_buffer.append(experience)
                 state = nextstate
-                if np.array(done).any() or t == self.env_params['max_timesteps'] -2:
+                if np.array(done).any() or t +1 == self.env_params['max_timesteps']:
                     her_batch = self.buffer.HERFutureBatch(deepcopy(temp_buffer))
                     self.buffer.concat(deepcopy(temp_buffer))
                     self.buffer.concat(her_batch)

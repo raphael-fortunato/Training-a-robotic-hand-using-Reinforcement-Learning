@@ -48,3 +48,21 @@ class Normalizer:
         r = np.clip(reward / np.sqrt(self.runn_mean_reward.var + self.epsilon), -self.clip_rew, self.clip_rew)
 
         return r
+
+    
+    def load(load_path, venv):
+        """
+        Loads a saved VecNormalize object.
+
+        :param load_path: the path to load from.
+        :param venv: the VecEnv to wrap.
+        :return: (VecNormalize)
+        """
+        with open(load_path, "rb") as file_handler:
+            norm = pickle.load(file_handler)
+
+        return norm
+
+    def save(self, save_path):
+        with open(save_path, "wb") as file_handler:
+            pickle.dump(self, file_handler)
