@@ -140,11 +140,11 @@ class Agent:
             action_next = self.actor_target.forward(nextstate)
             q_next = self.critic_target.forward(nextstate,action_next)
             q_next = q_next.detach().squeeze()
-            q_target = r_batch + self.gamma * q_next * d_batch
+            q_target = r_batch + self.gamma * q_next *(1 - d_batch ) 
             q_target = q_target.detach()
 
         q_prime = self.critic.forward(state, a_batch)
-        critic_loss = F.mse_loss(q_target.squeeze() - q_prime.squeeze())
+        critic_loss = F.mse_loss(q_target.squeeze() , q_prime.squeeze())
 
         action = self.actor.forward(state)
         actor_loss = -self.critic.forward(state, action).mean()
