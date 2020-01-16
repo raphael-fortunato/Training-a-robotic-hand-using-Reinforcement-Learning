@@ -211,27 +211,28 @@ class Agent:
         total_reward = []
         episode_reward = 0
         succes_rate = []
-        for episode in range(20):
-            step = self.evaluate_env.reset()
+        for episode in range(10):
+            step = self.env.reset()
             step = self.norm.normalize_state(step)
             episode_reward = 0
             for t in range(self.env_params['max_timesteps']): 
-                action = self.Action(step,param_noise=None, batch=False)
-                nextstate, reward, done, info = self.evaluate_env.step(action)
+                action = self.Action(step,param_noise=None, batch=True)
+                nextstate, reward, done, info = self.env.step(action)
                 nextstate = self.norm.normalize_state(nextstate)
                 reward = self.norm.normalize_reward(reward)
-                if info['is_success']:
-                    succes_rate.append(True)
-                episode_reward += reward
+                episode_reward += reward[:]
                 if np.array(done).any() or t == self.env_params['max_timesteps'] -2:
-                    if not info['is_success']:
-                        succes_rate.append(False)
+                    succes_rate.append([i['is_success'] for i in info])
                     total_reward.append(episode_reward)
                     episode_reward = 0
+        pdb.set_trace()
+        total_reward = np.array(total_reward).flatten()
+        succes_rate = np.array(succes_rate).flatten()
         average_reward = sum(total_reward)/len(total_reward)
         min_reward = min(total_reward)
         max_reward = max(total_reward)
         succes = np.sum(succes_rate)/len(succes_rate)
+
         self.tensorboard.update_stats(Succes_Rate=succes,reward_avg=average_reward, reward_min=min_reward, reward_max=max_reward)
 
     
