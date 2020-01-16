@@ -202,6 +202,8 @@ class Agent:
                         self.SaveModels(episode)
                     break
 
+    
+    
     def Evaluate(self):
         total_reward = []
         episode_reward = 0
@@ -229,6 +231,8 @@ class Agent:
         succes = np.sum(succes_rate)/len(succes_rate)
         self.tensorboard.update_stats(Succes_Rate=succes,reward_avg=average_reward, reward_min=min_reward, reward_max=max_reward)
 
+    
+    
     def record(self, episode):
         try:
             if not os.path.exists("videos"):
@@ -249,10 +253,12 @@ class Agent:
         except Exception as e:
             print(e)
 
+    
     def SaveModels(self, ep):
         torch.save(self.actor.state_dict(), self.path+ f"/Actor-{ep}.pt")
         torch.save(self.critic.state_dict(), self.path+ f"/Critic-{ep}.pt")
 
+    
     def LoadModels(self, actorpath, criticpath):
         actor = Actor(self.env_params, self.hidden_neurons)
         critic  = Critic(self.env_params, self.hidden_neurons)
@@ -260,6 +266,7 @@ class Agent:
         critic.load_state_dict(torch.load(criticpath))
         return actor, critic
 
+    
     def SoftUpdateTarget(self, network, target):
         for param, target_param in zip(network.parameters(), target.parameters()):
              target_param.data.copy_(self.tau * param.data + (1.0 - self.tau) * target_param.data)
