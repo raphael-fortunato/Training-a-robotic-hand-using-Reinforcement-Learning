@@ -26,7 +26,7 @@ class OUNoise:
 # From OpenAI Baselines:
 # https://github.com/openai/baselines/blob/master/baselines/ddpg/noise.py
 class OrnsteinUhlenbeckActionNoise:
-    def __init__(self, mu, sigma, theta=.15, dt=1e-2, x0=None):
+    def __init__(self, mu, sigma=.15, theta=.2, dt=1e-2, x0=None):
         self.theta = theta
         self.mu = mu
         self.sigma = sigma
@@ -34,7 +34,7 @@ class OrnsteinUhlenbeckActionNoise:
         self.x0 = x0
         self.reset()
 
-    def noise(self):
+    def __call__(self):
         x = self.x_prev + self.theta * (self.mu - self.x_prev) * self.dt \
             + self.sigma * np.sqrt(self.dt) * np.random.normal(size=self.mu.shape)
         self.x_prev = x

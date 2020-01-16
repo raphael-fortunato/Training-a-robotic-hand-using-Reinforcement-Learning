@@ -42,6 +42,7 @@ class Agent:
         self.l2_norm = l2
         self.batch_size = batch_size
         self.param_noise = AdaptiveParamNoiseSpec()
+        self.noise = OrnsteinUhlenbeckActionNoise(np.zeros((n_threads, self.env_params['action'])))
         self.old_action = np.zeros((n_threads, self.env_params['action']))
 
         # networks
@@ -105,14 +106,9 @@ class Agent:
                 action = self.actor_pertubated.forward(state).detach().cpu().numpy()
                 self.param_noise.adapt(Distance(self.old_action, action))
                 self.old_action = action
-                # add the gaussian
-                # action += self.noise_eps * self.env_params['max_action'] * np.random.randn(*action.shape)
-                # action = np.clip(action, -self.env_params['max_action'], self.env_params['max_action'])
-                # random actions...
-                random_actions = np.random.uniform(low=-self.env_params['max_action'], high=self.env_params['max_action'], \
-                                                    size=self.env_params['action'])
-                # choose if use the random actions
-                action += np.random.binomial(1, self.random_eps, 1)[0] * (random_actions - action)
+                # add the OUnoise
+                action +=  self.noise() * self.env_params['max_action'] * np.random.randn(*action.shape)
+                action = np.clip(action, -self.env_params['max_action'], self.env_params['max_action'])
                 return action
             else:
                 return self.actor.forward(state).detach().cpu().numpy()
@@ -293,7 +289,7 @@ if __name__ == '__main__':
     parser.add_argument('--render', type=str2bool, default=False, help='whether or not to render the screen')
     parser.add_argument('--her', type=str2bool, default=True, help='Hindsight experience replay')
     parser.add_argument('--per', type=str2bool, default=True, help='Prioritized experience replay')
-    parser.add_argument('--tb', type=str2bool, default=True, help='tensorboard activated via code')
+    parser.add_argument('--tb', type=str2bool, default=False, help='tensorboard activated via code')
     args = parser.parse_args()
 
     num_threads = os.cpu_count() -2
