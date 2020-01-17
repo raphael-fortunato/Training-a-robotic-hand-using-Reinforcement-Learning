@@ -13,7 +13,7 @@ class Buffer:
         self.per = per
         self.n_threads = num_threads
         if self.per:
-            self.per_sampler = prioritized_sampler(metric='distance')
+            self.per_sampler = prioritized_sampler(metric='impact')
         
     def HERFutureBatch(self, batch):
         for thread in range(self.n_threads):

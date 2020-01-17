@@ -70,6 +70,7 @@ class Agent:
         if not os.path.exists(self.path):
             os.mkdir(self.path)
         self.screen = screen
+        self.her = her
         self.buffer = Buffer(1_000_000,num_threads =n_threads ,per=per ,her=her,reward_func=self.evaluate_env.compute_reward,)
         self.norm = Normalizer(self.env_params, self.gamma)
         self.tensorboard = ModifiedTensorBoard(log_dir = f"logs")
@@ -106,6 +107,9 @@ class Agent:
                 # add the OUnoise
                 action +=  self.noise() * self.env_params['max_action'] * np.random.randn(*action.shape)
                 action = np.clip(action, -self.env_params['max_action'], self.env_params['max_action'])
+                #random actions
+                random_actions = np.random.uniform(low=-self.env_params['max_action'], high=self.env_params['max_action'], \
+                                            size=self.env_params['action'])
                 action += np.random.binomial(1, self.random_eps, 1)[0] * (random_actions - action)
                 return action
             else:
@@ -167,7 +171,6 @@ class Agent:
         for episode in iterator:
             temp_buffer = []
             state = self.env.reset()
-
             state = self.norm.normalize_state(state)
             self.tensorboard.step = episode
             for t in range(self.env_params['max_timesteps']): 
@@ -189,9 +192,10 @@ class Agent:
                     temp_buffer.append(experience)
                 state = nextstate
                 if np.array(done).any() or t +1 == self.env_params['max_timesteps']:
-                    her_batch = self.buffer.HERFutureBatch(deepcopy(temp_buffer))
+                    if self.her:
+                        her_batch = self.buffer.HERFutureBatch(deepcopy(temp_buffer))
+                        self.buffer.concat(her_batch)
                     self.buffer.concat(deepcopy(temp_buffer))
-                    self.buffer.concat(her_batch)
                     if episode > 5:
                         a_loss, c_loss = self.Update(iteration)
                         self.tensorboard.update_stats(ActorLoss=a_loss/self.batch_size, CriticLoss=c_loss)
@@ -200,7 +204,7 @@ class Agent:
                         self.Evaluate()
                     if episode in self.record_episodes:
                         self.record(episode)
-                    if episode % 10_000 or episode == self.env_params['max_timesteps'] -2:
+                    if episode % 10_000 or episode + 1 == self.episodes:
                         self.SaveModels(episode)
                     break
 
@@ -220,7 +224,7 @@ class Agent:
                 nextstate = self.norm.normalize_state(nextstate)
                 reward = self.norm.normalize_reward(reward)
                 episode_reward += reward[:]
-                if np.array(done).any() or t == self.env_params['max_timesteps'] -2:
+                if np.array(done).any() or t + 1 == self.env_params['max_timesteps']:
                     succes_rate.append([i['is_success'] for i in info])
                     total_reward.append(episode_reward)
                     episode_reward = 0
@@ -230,7 +234,6 @@ class Agent:
         min_reward = min(total_reward)
         max_reward = max(total_reward)
         succes = np.sum(succes_rate)/len(succes_rate)
-
         self.tensorboard.update_stats(Succes_Rate=succes,reward_avg=average_reward, reward_min=min_reward, reward_max=max_reward)
 
     
@@ -294,7 +297,7 @@ def str2bool(v):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--n-episodes', type=int, default=10000, help='number of episodes')
-    parser.add_argument('--batch_size', type=int, default=512, help='size of the batch to pass through the network')
+    parser.add_argument('--batch_size', type=int, default=64, help='size of the batch to pass through the network')
     parser.add_argument('--render', type=str2bool, default=False, help='whether or not to render the screen')
     parser.add_argument('--her', type=str2bool, default=True, help='Hindsight experience replay')
     parser.add_argument('--per', type=str2bool, default=True, help='Prioritized experience replay')
@@ -303,8 +306,8 @@ if __name__ == '__main__':
 
     num_threads = os.cpu_count() -2
     iteration = num_threads
-    env = gym.make('HandManipulateBlock-v0') 
-    env_make = tuple(lambda: gym.make('HandManipulateBlock-v0') for _ in range(num_threads))
+    env = gym.make('FetchReach-v1') 
+    env_make = tuple(lambda: gym.make('FetchReach-v1') for _ in range(num_threads))
     envs = SubprocVecEnv(env_make)
     env_param = get_params(env)
     agent = Agent(env, envs,env_param,n_episodes=args.n_episodes, n_threads=num_threads, save_path=None, \

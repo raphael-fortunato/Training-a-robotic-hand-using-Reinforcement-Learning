@@ -5,7 +5,7 @@ from inspect import currentframe, getframeinfo
 frameinfo = getframeinfo(currentframe())
 
 class prioritized_sampler:
-    def __init__(self, metric='distance'):
+    def __init__(self, metric='impact'):
         self.metric = metric
 
     # Calculates the Euclidean distance between two vectors
