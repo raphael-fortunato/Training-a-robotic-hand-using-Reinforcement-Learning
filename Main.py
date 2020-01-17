@@ -25,7 +25,7 @@ import argparse
 
 
 class Agent:
-    def __init__(self, test_env ,env, env_params, n_episodes,n_threads ,tensorboard=True, random_eps=.3 ,noise_eps=.2, tau=0.05, batch_size=256, \
+    def __init__(self, test_env ,env, env_params, n_episodes,n_threads ,tensorboard=True, random_eps=.3 ,noise_eps=.2, tau=0.95, batch_size=256, \
                 gamma=.98, l2=1. ,per=True, her=True ,screen=False,modelpath='models' ,savepath=None, save_path='models',\
                 record_episode = [0,.05 ,.1 , .15, .25,.35 ,.5, .75, 1.] ,aggregate_stats_every=100):
         self.evaluate_env = test_env
@@ -154,7 +154,7 @@ class Agent:
             critic_loss = F.mse_loss(q_target.squeeze() , q_prime.squeeze())
 
             action = self.actor.forward(state)
-            actor_loss = -self.critic.forward(state, action).mean()
+            actor_loss = -1 * self.critic.forward(state, action).mean()
             actor_loss += self.l2_norm * (action / self.env_params['max_action']).pow(2).mean()
 
             self.actor_optim.zero_grad()
@@ -204,7 +204,7 @@ class Agent:
                         her_batch = self.buffer.HERFutureBatch(deepcopy(temp_buffer))
                         self.buffer.concat(her_batch)
                     self.buffer.concat(deepcopy(temp_buffer))
-                    if episode > 5:
+                    if episode > 50:
                         self.perturbate_actor(state)
                         a_loss, c_loss = self.Update(iteration)
                         self.tensorboard.update_stats(ActorLoss=a_loss/self.batch_size, CriticLoss=c_loss)
@@ -281,9 +281,9 @@ class Agent:
         return actor, critic
 
     
-    def SoftUpdateTarget(self, network, target):
-        for param, target_param in zip(network.parameters(), target.parameters()):
-             target_param.data.copy_(self.tau * param.data + (1.0 - self.tau) * target_param.data)
+    def SoftUpdateTarget(self, source, target):
+        for target_param, param in zip(target.parameters(), source.parameters()):
+            target_param.data.copy_((1 - self.tau) * param.data + self.tau * target_param.data)
 
 def get_params(env):
 	obs = env.reset()
@@ -305,8 +305,8 @@ def str2bool(v):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--n-episodes', type=int, default=20000, help='number of episodes')
-    parser.add_argument('--batch_size', type=int, default=2024, help='size of the batch to pass through the network')
+    parser.add_argument('--n-episodes', type=int, default=2000, help='number of episodes')
+    parser.add_argument('--batch_size', type=int, default=256, help='size of the batch to pass through the network')
     parser.add_argument('--render', type=str2bool, default=False, help='whether or not to render the screen')
     parser.add_argument('--her', type=str2bool, default=True, help='Hindsight experience replay')
     parser.add_argument('--per', type=str2bool, default=True, help='Prioritized experience replay')
@@ -314,7 +314,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     num_threads = os.cpu_count() -2
-    iteration = 1
+    iteration = 30
     env = gym.make('FetchReach-v1') 
     env_make = tuple(lambda: gym.make('FetchReach-v1') for _ in range(num_threads))
     envs = SubprocVecEnv(env_make)

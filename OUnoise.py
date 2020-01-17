@@ -50,7 +50,7 @@ class OrnsteinUhlenbeckActionNoise:
 # From OpenAI Baselines:
 # https://github.com/openai/baselines/blob/master/baselines/ddpg/noise.py
 class AdaptiveParamNoiseSpec(object):
-    def __init__(self, initial_stddev=0.1, desired_action_stddev=0.2, adaptation_coefficient=1.01):
+    def __init__(self, initial_stddev=0.1, desired_action_stddev=0.1, adaptation_coefficient=1.01):
         """
         Note that initial_stddev and current_stddev refer to std of parameter noise,
         but desired_action_stddev refers to (as name notes) desired std in action space

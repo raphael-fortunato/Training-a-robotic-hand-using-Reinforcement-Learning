@@ -6,7 +6,7 @@ class Normalizer:
     """
     Normalizes state and vectors through running means and running stds. Based on open ai's stable baselines
     """
-    def __init__(self, obs_shape, gamma, training=True ,clip_obs = 10, clip_rew=10, eps=1e-8):
+    def __init__(self, obs_shape, gamma, training=True ,clip_obs = 5, clip_rew=5, eps=1e-8):
         self.runn_mean_obs = RunningMeanStd(shape=obs_shape['observation'])
         self.runn_mean_des = RunningMeanStd(shape=obs_shape['goal'])
         self.runn_mean_ach = RunningMeanStd(shape=obs_shape['goal'])
