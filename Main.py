@@ -62,8 +62,8 @@ class Agent:
             self.actor_target.cuda()
             self.critic_target.cuda()
             self.actor_pertubated.cuda()
-        self.actor_optim = torch.optim.Adam(self.actor.parameters(), lr=0.001)
-        self.critic_optim = torch.optim.Adam(self.critic.parameters(), lr=0.001)
+        self.actor_optim = torch.optim.Adam(self.actor.parameters(), lr=0.0005)
+        self.critic_optim = torch.optim.Adam(self.critic.parameters(), lr=0.00001)
         # create path to save the model
         self.savepath = save_path
         self.path = modelpath
@@ -303,7 +303,7 @@ def str2bool(v):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--n-episodes', type=int, default=20000, help='number of episodes')
-    parser.add_argument('--batch_size', type=int, default=256, help='size of the batch to pass through the network')
+    parser.add_argument('--batch_size', type=int, default=5024, help='size of the batch to pass through the network')
     parser.add_argument('--render', type=str2bool, default=False, help='whether or not to render the screen')
     parser.add_argument('--her', type=str2bool, default=True, help='Hindsight experience replay')
     parser.add_argument('--per', type=str2bool, default=True, help='Prioritized experience replay')
