@@ -84,6 +84,20 @@ class Agent:
         os.system('tensorboard --logdir=' + 'logs'+ ' --host 0.0.0.0')
 
 
+    def perturbate_actor(self):
+        self.actor_pertubated.load_state_dict(self.actor_target.state_dict())
+        params = self.actor_pertubated.state_dict()
+        for name in params:
+            if 'ln' in name:
+                pass
+            param = params[name]
+            if torch.cuda.is_available():
+                param.copy_(param + torch.randn(param.shape, device='cuda') * param_noise.current_stddev)
+            else:
+                param.copy_(torch.randn(param.shape) * param_noise.current_stddev)
+        action = self.actor_pertubated.forward(state).detach().cpu().numpy()
+        self.param_noise.adapt(Distance(self.actor.forward(state).detach().cpu().numpy(), action))
+
 
     def Action(self, state, param_noise, batch= True):
         with torch.no_grad():
@@ -92,21 +106,8 @@ class Agent:
             else:
                 state = np.concatenate([state['observation'], state['desired_goal']])
             if param_noise is not None:
-                self.actor_pertubated.load_state_dict(self.actor_target.state_dict())
-                params = self.actor_pertubated.state_dict()
-                for name in params:
-                    if 'ln' in name:
-                        pass
-                    param = params[name]
-                    if torch.cuda.is_available():
-                        param += torch.randn(param.shape, device='cuda') * param_noise.current_stddev
-                    else:
-                        param += torch.randn(param.shape) * param_noise.current_stddev
                 action = self.actor_pertubated.forward(state).detach().cpu().numpy()
-                self.param_noise.adapt(Distance(self.actor_target.forward(state).detach().cpu().numpy(), action))
-                # add the OUnoise
-                action +=  self.noise() * self.env_params['max_action'] * np.random.randn(*action.shape)
-                action = np.clip(action, -self.env_params['max_action'], self.env_params['max_action'])
+                self.param_noise.adapt(Distance(self.actor.forward(state).detach().cpu().numpy(), action))
                 #random actions
                 random_actions = np.random.uniform(low=-self.env_params['max_action'], high=self.env_params['max_action'], \
                                             size=self.env_params['action'])
@@ -197,6 +198,7 @@ class Agent:
                         self.buffer.concat(her_batch)
                     self.buffer.concat(deepcopy(temp_buffer))
                     if episode > 5:
+                        self.perturbate_actor()
                         a_loss, c_loss = self.Update(iteration)
                         self.tensorboard.update_stats(ActorLoss=a_loss/self.batch_size, CriticLoss=c_loss)
                         iterator.set_postfix(Actor_loss = a_loss, Critic_loss=c_loss)
@@ -224,7 +226,7 @@ class Agent:
                 nextstate = self.norm.normalize_state(nextstate)
                 reward = self.norm.normalize_reward(reward)
                 episode_reward += reward[:]
-                if np.array(done).any() or t + 1 == self.env_params['max_timesteps']:
+                if t + 1 == self.env_params['max_timesteps']:
                     succes_rate.append([i['is_success'] for i in info])
                     total_reward.append(episode_reward)
                     episode_reward = 0
@@ -296,8 +298,8 @@ def str2bool(v):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--n-episodes', type=int, default=10000, help='number of episodes')
-    parser.add_argument('--batch_size', type=int, default=64, help='size of the batch to pass through the network')
+    parser.add_argument('--n-episodes', type=int, default=20000, help='number of episodes')
+    parser.add_argument('--batch_size', type=int, default=256, help='size of the batch to pass through the network')
     parser.add_argument('--render', type=str2bool, default=False, help='whether or not to render the screen')
     parser.add_argument('--her', type=str2bool, default=True, help='Hindsight experience replay')
     parser.add_argument('--per', type=str2bool, default=True, help='Prioritized experience replay')
@@ -305,7 +307,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     num_threads = os.cpu_count() -2
-    iteration = num_threads
+    iteration = 1
     env = gym.make('FetchReach-v1') 
     env_make = tuple(lambda: gym.make('FetchReach-v1') for _ in range(num_threads))
     envs = SubprocVecEnv(env_make)

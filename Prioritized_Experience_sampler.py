@@ -42,8 +42,8 @@ class prioritized_sampler:
         lowestHalf = newMemory[:int(len(newMemory)/2)]
         topHalf = newMemory[int(len(newMemory)/2):]
         # Get the samples from the top half and the lower half, according to the percentage that was given
-        sample = list(random.sample(topHalf, int(round(sample_size*percentage, 0))))
-        newsample = list(random.sample(lowestHalf, sample_size-int(round(sample_size*percentage, 0)))) 
+        sample = list(random.sample(topHalf, int(sample_size*percentage)))
+        newsample = list(random.sample(lowestHalf, sample_size-int(sample_size*percentage))) 
 
         # Concatenate into 1 list and return. 
         return np.concatenate([sample, newsample], axis = 0)
