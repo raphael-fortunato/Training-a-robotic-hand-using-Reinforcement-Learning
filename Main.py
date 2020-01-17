@@ -106,6 +106,7 @@ class Agent:
                 # add the OUnoise
                 action +=  self.noise() * self.env_params['max_action'] * np.random.randn(*action.shape)
                 action = np.clip(action, -self.env_params['max_action'], self.env_params['max_action'])
+                action += np.random.binomial(1, self.random_eps, 1)[0] * (random_actions - action)
                 return action
             else:
                 return self.actor.forward(state).detach().cpu().numpy()
