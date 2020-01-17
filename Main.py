@@ -84,7 +84,11 @@ class Agent:
         os.system('tensorboard --logdir=' + 'logs'+ ' --host 0.0.0.0')
 
 
-    def perturbate_actor(self):
+    def perturbate_actor(self, state, batch=True):
+        if batch:
+            state = np.concatenate([state['observation'], state['desired_goal']], axis=1)
+        else:
+            state = np.concatenate([state['observation'], state['desired_goal']])
         self.actor_pertubated.load_state_dict(self.actor_target.state_dict())
         params = self.actor_pertubated.state_dict()
         for name in params:
@@ -92,9 +96,9 @@ class Agent:
                 pass
             param = params[name]
             if torch.cuda.is_available():
-                param.copy_(param + torch.randn(param.shape, device='cuda') * param_noise.current_stddev)
+                param.copy_(param + torch.randn(param.shape, device='cuda') * self.param_noise.current_stddev)
             else:
-                param.copy_(torch.randn(param.shape) * param_noise.current_stddev)
+                param.copy_(torch.randn(param.shape) * self.param_noise.current_stddev)
         action = self.actor_pertubated.forward(state).detach().cpu().numpy()
         self.param_noise.adapt(Distance(self.actor.forward(state).detach().cpu().numpy(), action))
 
@@ -198,7 +202,7 @@ class Agent:
                         self.buffer.concat(her_batch)
                     self.buffer.concat(deepcopy(temp_buffer))
                     if episode > 5:
-                        self.perturbate_actor()
+                        self.perturbate_actor(state)
                         a_loss, c_loss = self.Update(iteration)
                         self.tensorboard.update_stats(ActorLoss=a_loss/self.batch_size, CriticLoss=c_loss)
                         iterator.set_postfix(Actor_loss = a_loss, Critic_loss=c_loss)
