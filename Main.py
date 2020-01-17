@@ -111,8 +111,6 @@ class Agent:
                 return self.actor.forward(state).detach().cpu().numpy()
 
 
-    
-
     def Update(self, iteration):
         c_loss = []
         a_loss = []
@@ -225,7 +223,6 @@ class Agent:
                     succes_rate.append([i['is_success'] for i in info])
                     total_reward.append(episode_reward)
                     episode_reward = 0
-        pdb.set_trace()
         total_reward = np.array(total_reward).flatten()
         succes_rate = np.array(succes_rate).flatten()
         average_reward = sum(total_reward)/len(total_reward)
