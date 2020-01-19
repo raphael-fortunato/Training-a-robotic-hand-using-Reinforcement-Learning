@@ -25,7 +25,7 @@ import argparse
 
 
 class Agent:
-    def __init__(self, test_env ,env, env_params, n_episodes,n_threads ,tensorboard=True, random_eps=.3 ,noise_eps=.2, tau=0.95, batch_size=256, \
+    def __init__(self, test_env ,env, env_params, n_episodes,n_threads ,tensorboard=True, random_eps=.3 ,noise_eps=.2, polyak=0.95, batch_size=256, \
                 gamma=.98, l2=1. ,per=True, her=True ,screen=False,modelpath='models' ,savepath=None, save_path='models',\
                 record_episode = [0,.05 ,.1 , .15, .25,.35 ,.5, .75, 1.] ,aggregate_stats_every=100):
         self.evaluate_env = test_env
@@ -37,7 +37,7 @@ class Agent:
         self.noise_eps = noise_eps
         self.random_eps = random_eps
         self.gamma = gamma
-        self.tau = tau
+        self.polyak = polyak
         self.l2_norm = l2
         self.batch_size = batch_size
         self.param_noise = AdaptiveParamNoiseSpec()
@@ -129,8 +129,8 @@ class Agent:
             a_batch = torch.tensor(a_batch,dtype=torch.double)
             r_batch = torch.tensor(r_batch,dtype=torch.double)
             d_batch = torch.tensor(d_batch,dtype=torch.double)
-            state = torch.tensor(state, dtype=torch.double)
-            nextstate = torch.tensor(nextstate, dtype=torch.double)
+            state = torch.tensor(state,dtype=torch.double)
+            nextstate = torch.tensor(nextstate,dtype=torch.double)
             d_batch = 1 - d_batch
 
             if torch.cuda.is_available():
@@ -283,7 +283,7 @@ class Agent:
     
     def SoftUpdateTarget(self, source, target):
         for target_param, param in zip(target.parameters(), source.parameters()):
-            target_param.data.copy_((1 - self.tau) * param.data + self.tau * target_param.data)
+            target_param.data.copy_((1 - self.polyak) * param.data + self.polyak * target_param.data)
 
 def get_params(env):
 	obs = env.reset()
@@ -314,7 +314,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     num_threads = os.cpu_count() -2
-    iteration = 30
+    iteration = num_threads -2
     env = gym.make('FetchReach-v1') 
     env_make = tuple(lambda: gym.make('FetchReach-v1') for _ in range(num_threads))
     envs = SubprocVecEnv(env_make)
