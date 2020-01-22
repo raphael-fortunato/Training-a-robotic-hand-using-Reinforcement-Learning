@@ -1,17 +1,21 @@
 import gym
 import numpy as np
 import torch
+import argparse
 
 from models import Actor
 
-def Normalize(state, mean_obs, std_obs, mean_g, std_g):
-    obs = state['observation']
+def Normalize(state, o_mean, o_std, g_mean, g_std):
+    o = state['observation']
     g = state['desired_goal']
-    obs = np.clip(obs, -CLIP_OBS, CLIP_OBS)
-    g = np.clip(g, -CLIP_OBS, CLIP_OBS)
-    obs = np.clip((obs - mean_obs) / std_obs, -CLIP_RANGE, CLIP_RANGE)
-    g = np.clip((g - mean_g)/ mean_g, -CLIP_RANGE, CLIP_RANGE)
-    return torch.tensor(np.concatenate([obs, g]), dtype=torch.float)
+    o_clip = np.clip(o, -CLIP_OBS, CLIP_OBS)
+    g_clip = np.clip(g, -CLIP_OBS, CLIP_OBS)
+    o_norm = np.clip((o_clip - o_mean) / (o_std), -CLIP_RANGE, CLIP_RANGE)
+    g_norm = np.clip((g_clip - g_mean) / (g_std), -CLIP_RANGE, CLIP_RANGE)
+    inputs = np.concatenate([o_norm, g_norm])
+    inputs = torch.tensor(inputs, dtype=torch.float32)
+    return inputs
+
 
 def get_params(env):
 	obs = env.reset()
@@ -28,14 +32,26 @@ CLIP_RANGE = 5
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--demo-length',type=int, default=20, help='number of demo episodes to run')
+    parser.add_argument('--distance', action='store_true', help='shows model with the distance version of per')
+    parser.add_argument('--impact', action='store_true', help='shows model with the impact version of per')
+    args = parser.parse_args()
+    if args.distance:
+        model_path = "models/HandManipulateBlock-v0/distance/model.pt"
+    elif args.impact:
+        model_path = "models/HandManipulateBlock-v0/impact/model.pt"
+    else:
+        model_path = "models/HandManipulateBlock-v0/normal/model.pt"
+
     env = gym.make('HandManipulateBlock-v0')
     env_params = get_params(env)
-    model_path = "saved_models/HandManipulateBlock-v0/model.pt"
+    
     mean_obs, std_obs, mean_g, std_g, model = torch.load(model_path, map_location=lambda storage, loc: storage)
     agent = Actor(env_params, 256)
     agent.load_state_dict(model)
 
-    while True:
+    for __ in range(args.demo_length):
         state = env.reset()
         state = Normalize(state, mean_obs, std_obs, mean_g, std_g)
         for _ in range (env._max_episode_steps):

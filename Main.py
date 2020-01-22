@@ -21,6 +21,8 @@ from copy import deepcopy
 from library.stable_baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 import argparse
 
+from mujoco_py import GlfwContext
+GlfwContext(offscreen=True)  # Create a window to init GLFW.
 
 
 
@@ -109,6 +111,8 @@ class Agent:
                 state = np.concatenate([state['observation'], state['desired_goal']], axis=1)
             else:
                 state = np.concatenate([state['observation'], state['desired_goal']])
+            if torch.cuda.is_available:
+                state = torch.tensor(state, device='cuda')
             if param_noise is not None:
                 action = self.actor_pertubated.forward(state).detach().cpu().numpy()
                 self.param_noise.adapt(Distance(self.actor.forward(state).detach().cpu().numpy(), action))
@@ -126,11 +130,11 @@ class Agent:
         a_loss = []
         for i in range(iteration):
             state, a_batch, r_batch, d_batch, nextstate = self.buffer.Sampler(self.batch_size, .8)
-            a_batch = torch.tensor(a_batch,dtype=torch.double)
-            r_batch = torch.tensor(r_batch,dtype=torch.double)
-            d_batch = torch.tensor(d_batch,dtype=torch.double)
-            state = torch.tensor(state,dtype=torch.double)
-            nextstate = torch.tensor(nextstate,dtype=torch.double)
+            a_batch = torch.tensor(a_batch,dtype=torch.float)
+            r_batch = torch.tensor(r_batch,dtype=torch.float)
+            d_batch = torch.tensor(d_batch,dtype=torch.float)
+            state = torch.tensor(state,dtype=torch.float)
+            nextstate = torch.tensor(nextstate,dtype=torch.float)
             d_batch = 1 - d_batch
 
             if torch.cuda.is_available():
@@ -315,8 +319,8 @@ if __name__ == '__main__':
 
     num_threads = os.cpu_count() -2
     iteration = num_threads -2
-    env = gym.make('FetchReach-v1') 
-    env_make = tuple(lambda: gym.make('FetchReach-v1') for _ in range(num_threads))
+    env = gym.make('HandManipulateBlock-v0') 
+    env_make = tuple(lambda: gym.make('HandManipulateBlock-v0') for _ in range(num_threads))
     envs = SubprocVecEnv(env_make)
     env_param = get_params(env)
     agent = Agent(env, envs,env_param,n_episodes=args.n_episodes, n_threads=num_threads, save_path=None, \
