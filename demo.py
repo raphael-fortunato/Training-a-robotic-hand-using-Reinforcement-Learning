@@ -11,7 +11,7 @@ def Normalize(state, o_mean, o_std, g_mean, g_std):
     o_clip = np.clip(o, -CLIP_OBS, CLIP_OBS)
     g_clip = np.clip(g, -CLIP_OBS, CLIP_OBS)
     o_norm = np.clip((o_clip - o_mean) / (o_std), -CLIP_RANGE, CLIP_RANGE)
-    g_norm = np.clip((g_clip - g_mean) / (g_std), -CLIP_RANGE, CLIP_RANGE)
+    g_norm = np.clip((g_clip - g_mean) / (g_std), -CLIP_RANGE, clip)
     inputs = np.concatenate([o_norm, g_norm])
     inputs = torch.tensor(inputs, dtype=torch.float32)
     return inputs
