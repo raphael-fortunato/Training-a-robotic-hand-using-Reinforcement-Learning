@@ -4,5 +4,5 @@ __pycache__/
 MUJOCO_LOG.TXT
 videos/
 runs/
-models/
+/new_ddpg
 return
