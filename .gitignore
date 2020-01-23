@@ -4,5 +4,7 @@ __pycache__/
 MUJOCO_LOG.TXT
 videos/
 runs/
+saved_models/
 /new_ddpg
+.ipynb_checkpoints/
 return

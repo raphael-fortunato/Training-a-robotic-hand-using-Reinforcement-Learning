@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import argparse
 import os 
+import sys
 
 from models import Actor
 
@@ -34,16 +35,16 @@ CLIP_RANGE = 5
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--demo-length',type=int, default=200000, help='number of demo episodes to run')
+    parser.add_argument('--demo-length',type=int, default=sys.maxsize, help='number of demo episodes to run')
     parser.add_argument('--distance', action='store_true', help='shows model with the distance version of per')
     parser.add_argument('--impact', action='store_true', help='shows model with the impact version of per')
     args = parser.parse_args()
     if args.distance:
-        model_path = os.path.join("models/HandManipulateBlock-v0/distance" "model.pt")
+        model_path = os.path.join("models/HandManipulateBlock-v0/distance/" "model.pt")
     elif args.impact:
-        model_path = os.path.join("models/HandManipulateBlock-v0/impact","model.pt")
+        model_path = os.path.join("models/HandManipulateBlock-v0/impact/","model.pt")
     else:
-        model_path = os.path.join("models/HandManipulateBlock-v0/normal","model.pt")
+        model_path = os.path.join("models/HandManipulateBlock-v0/normal/","model.pt")
 
     env = gym.make('HandManipulateBlock-v0')
     env_params = get_params(env)
