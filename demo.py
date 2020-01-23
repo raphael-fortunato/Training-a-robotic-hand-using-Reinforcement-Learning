@@ -39,11 +39,11 @@ if __name__ == '__main__':
     parser.add_argument('--impact', action='store_true', help='shows model with the impact version of per')
     args = parser.parse_args()
     if args.distance:
-        model_path = os.path("models/HandManipulateBlock-v0/distance/model.pt")
+        model_path = os.path.join("models/HandManipulateBlock-v0/distance" "model.pt")
     elif args.impact:
-        model_path = os.path("models/HandManipulateBlock-v0/impact/model.pt")
+        model_path = os.path.join("models/HandManipulateBlock-v0/impact","model.pt")
     else:
-        model_path = os.path("models/HandManipulateBlock-v0/normal/model.pt")
+        model_path = os.path.join("models/HandManipulateBlock-v0/normal","model.pt")
 
     env = gym.make('HandManipulateBlock-v0')
     env_params = get_params(env)
