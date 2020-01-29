@@ -84,12 +84,12 @@ for path in agents:
 
 plt.boxplot(overal_score)
 plt.xticks([1,2,3],["normal", "distance", "impact"])
-plt.title("Succes Rate")
+plt.title("Success Rate")
 plt.figure(figsize = (4,4))
-plt.savefig('data/boxplots.png')
+plt.savefig('data/boxplots.jpg')
 plt.show()
 
-print(f'normal={np.mean(overal_score[0])}, distance={np.mean(overal_score[1])}, impact={np.mean(overal_score[2])} \n\n')
+print(f'normal: mean  {np.mean(overal_score[0])}, std {np.std(overal_score[0])}, distance={np.mean(overal_score[1])}, std {np.std(overal_score[0])}, impact={np.mean(overal_score[2])}, std {np.std(overal_score[0])} \n\n')
 
 groups = [['normal']*args.numb_runs, ['distance']*args.numb_runs, ['impact']*args.numb_runs]
 F, p = stats.f_oneway(overal_score[0], overal_score[1], overal_score[2])
