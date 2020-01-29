@@ -309,20 +309,21 @@ def str2bool(v):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--n-episodes', type=int, default=2000, help='number of episodes')
+    parser.add_argument('--n-episodes', type=int, default=90, help='number of episodes')
+    parser.add_argument('--n-cicles', type=int, default=50, help='number of episodes')
     parser.add_argument('--batch_size', type=int, default=256, help='size of the batch to pass through the network')
+    parser.add_argument('--n-processes', type=int, default=19, help='size of the batch to pass through the network')
     parser.add_argument('--render', type=str2bool, default=False, help='whether or not to render the screen')
     parser.add_argument('--her', type=str2bool, default=True, help='Hindsight experience replay')
     parser.add_argument('--per', type=str2bool, default=True, help='Prioritized experience replay')
     parser.add_argument('--tb', type=str2bool, default=False, help='tensorboard activated via code')
     args = parser.parse_args()
 
-    num_threads = os.cpu_count() -2
-    iteration = num_threads -2
+    
     env = gym.make('HandManipulateBlock-v0') 
-    env_make = tuple(lambda: gym.make('HandManipulateBlock-v0') for _ in range(num_threads))
+    env_make = tuple(lambda: gym.make('HandManipulateBlock-v0') for _ in range(arg.n_processes))
     envs = SubprocVecEnv(env_make)
     env_param = get_params(env)
-    agent = Agent(env, envs,env_param,n_episodes=args.n_episodes, n_threads=num_threads, save_path=None, \
+    agent = Agent(env, envs,env_param,n_episodes=args.n_episodes, n_threads=arg.n_processes, save_path=None, \
     batch_size=args.batch_size, tensorboard=args.tb ,her=args.her, per=args.per ,screen=args.render)
-    agent.Explore(iteration)
+    agent.Explore(args.n_cycles)
