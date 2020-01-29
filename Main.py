@@ -26,7 +26,7 @@ import argparse
 class Agent:
 	def __init__(self, test_env ,env, env_params, n_episodes,n_threads ,tensorboard=True, random_eps=.3 ,noise_eps=.2, polyak=0.95, batch_size=256, \
 				gamma=.98, l2=1. ,per=True, her=True ,screen=False,modelpath='models' ,savepath=None, save_path='models',\
-				record_episode = [0,.05 ,.1 , .15, .25,.35 ,.5, .75, 1.] ,aggregate_stats_every=100):
+				record_episode = [0,.05 ,.1 , .15, .25,.35 ,.5, .75, 1.] ,aggregate_stats_every=1):
 		self.evaluate_env = test_env
 		self.env= env
 		self.env_params = env_params
@@ -227,7 +227,7 @@ class Agent:
 		total_reward = []
 		episode_reward = 0
 		succes_rate = []
-		for episode in range(10):
+		for episode in range(50):
 			step = self.env.reset()
 			step = self.norm.normalize_state(step)
 			episode_reward = 0
@@ -312,11 +312,11 @@ if __name__ == '__main__':
 	parser.add_argument('--n-episodes', type=int, default=90, help='number of episodes')
 	parser.add_argument('--n-batch', type=int, default=40, help='number of episodes')
 	parser.add_argument('--batch_size', type=int, default=256, help='size of the batch to pass through the network')
-	parser.add_argument('--n-processes', type=int, default=19, help='size of the batch to pass through the network')
+	parser.add_argument('--n-processes', type=int, default=8, help='size of the batch to pass through the network')
 	parser.add_argument('--render', type=str2bool, default=False, help='whether or not to render the screen')
 	parser.add_argument('--her', type=str2bool, default=True, help='Hindsight experience replay')
 	parser.add_argument('--per', type=str2bool, default=True, help='Prioritized experience replay')
-	parser.add_argument('--tb', type=str2bool, default=False, help='tensorboard activated via code')
+	parser.add_argument('--tb', type=str2bool, default=True, help='tensorboard activated via code')
 	args = parser.parse_args()
 
 	
