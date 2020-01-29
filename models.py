@@ -11,7 +11,7 @@ class Actor(nn.Module):
         self.fc1 = nn.Linear(env_params['observation']+ env_params['goal'],hidden_neurons )
         self.fc2 = nn.Linear(hidden_neurons, hidden_neurons)
         self.fc3 = nn.Linear(hidden_neurons, hidden_neurons)
-        self.output = nn.Linear(hidden_neurons, env_params['action'])
+        self.action_out = nn.Linear(hidden_neurons, env_params['action'])
         f1 = 1 / np.sqrt(self.fc1.weight.data.size()[0])
         torch.nn.init.uniform_(self.fc1.weight.data, -f1,f1)
         torch.nn.init.uniform_(self.fc1.bias.data, -f1, f1)
@@ -27,13 +27,11 @@ class Actor(nn.Module):
     def forward(self, x):
         if type(x) is not torch.Tensor:
             x = torch.tensor(x)
-        if torch.cuda.is_available():
-            x = x.cuda()
            
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
-        action = self.max_action * torch.tanh(self.output(x))
+        action = self.max_action * torch.tanh(self.action_out(x))
         return action
 
 
@@ -44,7 +42,7 @@ class Critic(nn.Module):
         self.fc1 = nn.Linear(env_params['observation'] + env_params['goal']+ env_params['action'],hidden_neurons )
         self.fc2 = nn.Linear(hidden_neurons, hidden_neurons)
         self.fc3 = nn.Linear(hidden_neurons, hidden_neurons)
-        self.q = nn.Linear(hidden_neurons, 1)
+        self.q_out = nn.Linear(hidden_neurons, 1)
         f1 = 1 / np.sqrt(self.fc1.weight.data.size()[0])
         torch.nn.init.uniform_(self.fc1.weight.data, -f1,f1)
         torch.nn.init.uniform_(self.fc1.bias.data, -f1, f1)
@@ -62,5 +60,5 @@ class Critic(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
-        q_value = self.q(x)
+        q_value = self.q_out(x)
         return q_value
