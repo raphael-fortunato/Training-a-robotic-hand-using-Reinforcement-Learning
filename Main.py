@@ -313,7 +313,7 @@ if __name__ == '__main__':
 	parser.add_argument('--n-batch', type=int, default=40, help='number of episodes')
 	parser.add_argument('--batch_size', type=int, default=256, help='size of the batch to pass through the network')
 	parser.add_argument('--n-processes', type=int, default=19, help='size of the batch to pass through the network')
-	parser.add_argument('--render', type=str2bool, default=True, help='whether or not to render the screen')
+	parser.add_argument('--render', type=str2bool, default=False, help='whether or not to render the screen')
 	parser.add_argument('--her', type=str2bool, default=True, help='Hindsight experience replay')
 	parser.add_argument('--per', type=str2bool, default=True, help='Prioritized experience replay')
 	parser.add_argument('--tb', type=str2bool, default=False, help='tensorboard activated via code')
