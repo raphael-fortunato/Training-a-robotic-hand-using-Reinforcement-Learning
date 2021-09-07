@@ -6,7 +6,7 @@ class Normalizer:
     """
     Normalizes state and vectors through running means and running stds. Based on open ai's stable baselines
     """
-    def __init__(self, obs_shape, gamma, training=True ,clip_obs = 10, clip_rew=10, eps=1e-8):
+    def __init__(self, obs_shape, gamma, training=True ,clip_obs = 5, clip_rew=5, eps=1e-8):
         self.runn_mean_obs = RunningMeanStd(shape=obs_shape['observation'])
         self.runn_mean_des = RunningMeanStd(shape=obs_shape['goal'])
         self.runn_mean_ach = RunningMeanStd(shape=obs_shape['goal'])
@@ -48,3 +48,21 @@ class Normalizer:
         r = np.clip(reward / np.sqrt(self.runn_mean_reward.var + self.epsilon), -self.clip_rew, self.clip_rew)
 
         return r
+
+    
+    def load(load_path, venv):
+        """
+        Loads a saved VecNormalize object.
+
+        :param load_path: the path to load from.
+        :param venv: the VecEnv to wrap.
+        :return: (VecNormalize)
+        """
+        with open(load_path, "rb") as file_handler:
+            norm = pickle.load(file_handler)
+
+        return norm
+
+    def save(self, save_path):
+        with open(save_path, "wb") as file_handler:
+            pickle.dump(self, file_handler)
